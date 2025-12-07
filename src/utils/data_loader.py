@@ -44,20 +44,127 @@ def save_dolly(path:str) -> None:
 def save_alpaca(path:str) -> None:
     """
     Load the Alpaca dataset from HuggingFace
+    Dataset size: 51,974 examples (20MB, 284,280 lines)
 
     Args:
         path (str): Output file path for the formatted dataset
     """
+    print("Loading Alpaca dataset...")
     ds_len = 0
     ds = load_dataset("tatsu-lab/alpaca")
     ds = ds['train']
     ds = ds.select(range(ds_len)) if ds_len > 0 else ds
+    print(f"Loaded {len(ds)} examples")
+
+    print(f"Writing to {path}...")
     with open(path, "w", encoding="utf-8") as f:
         for idx, ex in enumerate(ds):
             text = (
                 f"Instruction: {ex['instruction']}\n"
                 f"Input: {ex['input']}\n"
                 f"Output: {ex['output']}\n"
+            )
+            f.write(text + "\n\n")
+
+            if (idx + 1) % 1000 == 0:
+                print(f"Processed {idx + 1}/{len(ds)} examples")
+
+    print(f"Successfully saved {len(ds)} examples to {path}")
+
+def save_wizardlm(path:str) -> None:
+    """
+    Load the WizardLM dataset from HuggingFace
+    Dataset size: 70,004 examples (126MB, 1,537,373 lines)
+
+    Args:
+        path (str): Output file path for the formatted dataset
+    """
+    print("Loading WizardLM dataset...")
+    ds_len = 0
+    ds = load_dataset("WizardLM/WizardLM_evol_instruct_V2_196k")
+    ds = ds['train']
+    ds = ds.select(range(ds_len)) if ds_len > 0 else ds
+    print(f"Loaded {len(ds)} examples")
+
+    print(f"Writing to {path}...")
+    with open(path, "w", encoding="utf-8") as f:
+        for idx, ex in enumerate(ds):
+            # WizardLM typically has 'instruction' and 'output' fields
+            instruction = ex.get('instruction', ex.get('conversations', [{}])[0].get('value', ''))
+            output = ex.get('output', ex.get('conversations', [{}])[-1].get('value', ''))
+
+            text = (
+                f"Instruction: {instruction}\n"
+                f"Input: \n"
+                f"Output: {output}\n"
+            )
+            f.write(text + "\n\n")
+
+            if (idx + 1) % 1000 == 0:
+                print(f"Processed {idx + 1}/{len(ds)} examples")
+
+    print(f"Successfully saved {len(ds)} examples to {path}")
+
+def save_flan(path:str) -> None:
+    """
+    Load the FLAN 50K dataset from HuggingFace
+    Dataset size: 50,000 examples (87MB, 1,962,003 lines)
+
+    Args:
+        path (str): Output file path for the formatted dataset
+    """
+    print("Loading FLAN 50K dataset...")
+    ds_len = 0
+    ds = load_dataset("Muennighoff/flan")
+    ds = ds['train']
+    ds = ds.select(range(ds_len)) if ds_len > 0 else ds
+    print(f"Loaded {len(ds)} examples")
+
+    print(f"Writing to {path}...")
+    with open(path, "w", encoding="utf-8") as f:
+        for idx, ex in enumerate(ds):
+            # FLAN typically has 'inputs' and 'targets' fields
+            instruction = ex.get('inputs', '')
+            output = ex.get('targets', '')
+
+            text = (
+                f"Instruction: {instruction}\n"
+                f"Input: \n"
+                f"Output: {output}\n"
+            )
+            f.write(text + "\n\n")
+
+            if (idx + 1) % 1000 == 0:
+                print(f"Processed {idx + 1}/{len(ds)} examples")
+
+    print(f"Successfully saved {len(ds)} examples to {path}")
+
+def save_gpt_teacher(path:str) -> None:
+    """
+    Load the GPT Teacher dataset from HuggingFace
+    Dataset size: 89,260 examples (55MB, 534,010 lines)
+
+    Args:
+        path (str): Output file path for the formatted dataset
+    """
+    print("Loading GPT Teacher dataset...")
+    ds_len = 0
+    ds = load_dataset("teknium/GPTeacher-General-Instruct")
+    ds = ds['train']
+    ds = ds.select(range(ds_len)) if ds_len > 0 else ds
+    print(f"Loaded {len(ds)} examples")
+
+    print(f"Writing to {path}...")
+    with open(path, "w", encoding="utf-8") as f:
+        for idx, ex in enumerate(ds):
+            instruction = ex.get('instruction', '')
+            input_text = ex.get('input', '')
+            output = ex.get('response', '')
+
+            text = (
+                f"Instruction: {instruction}\n"
+                f"Input: {input_text}\n"
+                f"Output: {output}\n"
             )
             f.write(text + "\n\n")
 
@@ -146,6 +253,84 @@ def load_text_file(path:str) -> list:
     # Split by double newlines to separate examples
     examples = [ex.strip() for ex in content.split('\n\n') if ex.strip()]
     return examples
+
+
+def combine_all_datasets(output_path:str, alpaca_path:str = None, wizardlm_path:str = None,
+                         flan_path:str = None, gpt_teacher_path:str = None) -> None:
+    """
+    Combine all datasets into a single file.
+
+    This function can either:
+    1. Load existing dataset files and combine them (if paths are provided)
+    2. Download and save each dataset, then combine them (if paths are None)
+
+    Total combined size: 261,238 examples
+    - Alpaca: 51,974 examples
+    - WizardLM: 70,004 examples
+    - FLAN 50K: 50,000 examples
+    - GPT Teacher: 89,260 examples
+
+    Args:
+        output_path (str): Path to save the combined dataset
+        alpaca_path (str, optional): Path to alpaca dataset file. If None, will download.
+        wizardlm_path (str, optional): Path to wizardlm dataset file. If None, will download.
+        flan_path (str, optional): Path to flan dataset file. If None, will download.
+        gpt_teacher_path (str, optional): Path to gpt_teacher dataset file. If None, will download.
+    """
+    import os
+
+    temp_dir = "training_data/temp"
+    os.makedirs(temp_dir, exist_ok=True)
+
+    # Download datasets if paths not provided
+    if alpaca_path is None:
+        alpaca_path = os.path.join(temp_dir, "alpaca.txt")
+        print("\nDownloading Alpaca dataset...")
+        save_alpaca(alpaca_path)
+
+    if wizardlm_path is None:
+        wizardlm_path = os.path.join(temp_dir, "wizardlm.txt")
+        print("\nDownloading WizardLM dataset...")
+        save_wizardlm(wizardlm_path)
+
+    if flan_path is None:
+        flan_path = os.path.join(temp_dir, "flan.txt")
+        print("\nDownloading FLAN dataset...")
+        save_flan(flan_path)
+
+    if gpt_teacher_path is None:
+        gpt_teacher_path = os.path.join(temp_dir, "gpt_teacher.txt")
+        print("\nDownloading GPT Teacher dataset...")
+        save_gpt_teacher(gpt_teacher_path)
+
+    # Combine all datasets
+    print(f"\nCombining all datasets into {output_path}...")
+    total_examples = 0
+
+    with open(output_path, 'w', encoding='utf-8') as out_file:
+        # Combine each dataset
+        for dataset_name, dataset_path in [
+            ("Alpaca", alpaca_path),
+            ("WizardLM", wizardlm_path),
+            ("FLAN", flan_path),
+            ("GPT Teacher", gpt_teacher_path)
+        ]:
+            if os.path.exists(dataset_path):
+                print(f"Adding {dataset_name} dataset...")
+                with open(dataset_path, 'r', encoding='utf-8') as in_file:
+                    content = in_file.read()
+                    out_file.write(content)
+                    if not content.endswith('\n\n'):
+                        out_file.write('\n\n')
+
+                # Count examples
+                examples = [ex for ex in content.split('\n\n') if ex.strip()]
+                print(f"  Added {len(examples)} examples from {dataset_name}")
+                total_examples += len(examples)
+            else:
+                print(f"Warning: {dataset_path} not found, skipping {dataset_name}")
+
+    print(f"\nSuccessfully combined {total_examples} total examples into {output_path}")
 
 
 if __name__ == "__main__":
