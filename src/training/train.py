@@ -1,29 +1,22 @@
-"""
-The trainer function that puts everything together. It runs through the fwd and bwd passes of every
-    other module, going through many epochs to allow the model to better predict tokens.
-"""
-
 import os
-import pickle
-import time as t
-import sys
-
-
-from datetime import datetime
-import gc
-import jax # pylint: disable=no-member
-import jax.numpy as jnp # pylint: disable=no-member
-import jax.tree_util as tree
 import numpy as np
+import jax
+import jax.numpy as jnp
+import jax.tree_util as tree
+import sys
 from tqdm import tqdm
-
-
+import time as t
+import gc
+import functools
+from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+import pickle
 from src.embeddings.embeddings import EmbeddingLayer
 from src.transformer.transformer_stack import TransformerStack
 from src.transformer.transformer_block import TransformerBlock
 from src.transformer.output_layer import OutputLayer
 from src.training.loss_function import CrossEntropyLoss
+from src.tokenizer.tiktoken_tokenizer import TikToken
 from src.optimizers.adam import AdamNested
 
 
@@ -41,33 +34,22 @@ class Trainer:
         Embeddings → TransformerStack (4-6 blocks) → OutputLayer → Loss
     """
 
-    def __init__(self,
-                tokenizer:object,
-                training_data=None,
-                token_ids=None,
-                lr=1e-4,
-                num_blocks=4,
-                num_heads=8,
-                embedding_dim=256,
-                max_seq_length=256,
-                use_lr_schedule=True,
-                warmup_steps=500,
-                dropout=0.0):
+    def __init__(self, tokenizer, training_data=None, token_ids=None, lr=1e-4, num_blocks=4, num_heads=8, embedding_dim=256, max_seq_length=256, use_lr_schedule=True, warmup_steps=500, dropout=0.0, min_lr=0.0):
         """
         Initialize Trainer with model architecture.
 
         Args:
-            tokenizer (object): Tokenizer instance (TikToken or BPETokenizer)
+            tokenizer: Tokenizer instance (TikToken or BPETokenizer)
             training_data (list): List of text strings for training (default: None)
             lr (float): Learning rate (default: 1e-4)
             num_blocks (int): Number of transformer blocks to stack (default: 4)
             num_heads (int): Number of attention heads per block (default: 8)
             embedding_dim (int): Embedding dimension (default: 256, must be divisible by num_heads)
             max_seq_length (int): Maximum sequence length for chunking (default: 256)
-            use_lr_schedule (bool): Whether to use learning rate warmup and cosine decay 
-                (default: True)
+            use_lr_schedule (bool): Whether to use learning rate warmup and cosine decay (default: True)
             warmup_steps (int): Number of warmup steps (default: 500)
             dropout (float): Dropout probability (default: 0.0)
+            min_lr (float): Minimum learning rate floor (default: 0.0)
         """
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
@@ -75,6 +57,7 @@ class Trainer:
         self.use_lr_schedule = use_lr_schedule
         self.warmup_steps = warmup_steps
         self.dropout = dropout
+        self.min_lr = min_lr
 
         # Validate that embedding_dim is divisible by num_heads
         if embedding_dim % num_heads != 0:
@@ -112,8 +95,16 @@ class Trainer:
 
         self.lr = lr
 
+        # Initialize training tracking variables
+        self.training_history = {
+            'losses': [],
+            'learning_rates': [],
+            'epochs_completed': 0,
+            'total_steps': 0
+        }
+
         # Initialize Adam optimizer with beta2=0.95 (nanoGPT value for better LLM training)
-        self.optimizer = AdamNested(lr=lr, beta1=0.9, beta2=0.95, epsilon=1e-8)
+        self.optimizer = AdamNested(lr=lr, beta1=0.9, beta2=0.95, epsilon=1e-8, min_lr=min_lr)
 
         # Create JIT-compiled loss and gradient function
         self._compiled_loss_and_grad = self._create_jit_loss_fn()
@@ -193,24 +184,8 @@ class Trainer:
         eos_token_id = self.tokenizer.eos_token_id
 
         @jax.jit
-        def loss_and_grad_fn(embed_params:dict,
-                            stack_params:dict,
-                            output_params:dict,
-                            final_ln_params:dict,
-                            token_ids:list,
-                            targets:jnp.ndarray):
-            """
-            JIT-compiled loss and gradient computation.
-
-            Args:
-                embed_params (dict): dictionary containing embedding parameters
-                stack_params (dict): dictionary containing stack parameters
-                output_params (dict): dictionary containing output parameters
-                final_ln_params (dict): dictionary containing parameters from
-                    final layer normalization
-                token_ids (list): list of token ids
-                targets (jnp.ndarray): Next token IDs the model is supposed to predict
-            """
+        def loss_and_grad_fn(embed_params, stack_params, output_params, final_ln_params, token_ids, targets):
+            """JIT-compiled loss and gradient computation."""
             def loss_fn(embed_params, stack_params, output_params, final_ln_params):
                 embeddings, _ = EmbeddingLayer.embedding_fwd(embed_params, token_ids)
 
@@ -239,7 +214,7 @@ class Trainer:
                     logits,
                     targets,
                     ignore_index=0,
-                    eos_weight=1,  # Reduce EOS importance to prevent early stopping
+                    eos_weight=1.0,  # Full weight for EOS tokens
                     eos_token_id=eos_token_id
                 )
                 return loss
@@ -380,12 +355,6 @@ class Trainer:
         self.final_beta = final_ln_dict['beta']
 
     def fwd(self, *args, **kwargs):
-        """
-        Helper function to return fwd
-
-        Returns:
-            tuple: _fwd method return
-        """
         return self._fwd(*args, **kwargs)
 
     def compute_loss_and_grads(self, token_ids, targets):
@@ -453,9 +422,11 @@ class Trainer:
 
         # Unpack updated parameters back to model
         self._unflatten_params(updated_params)
-        self.output_layer.W_out = self.embedding_layer.embeddings.T # Force weight tying by making W_out ALWAYS = embeddings.T
+        self.output_layer.W_out = self.embedding_layer.embeddings.T # WEIGHT TYING WAS MESSING UP MY LOSS ASASDJASGAKJDHASAJKDH
+        # Anyways force weight tying by making W_out ALWAYS = embeddings.T
 
-        self.output_layer.b_out = jnp.clip(self.output_layer.b_out, -5.0, 5.0) # Add b_out clipping to prevent massive values
+        self.output_layer.b_out = jnp.clip(self.output_layer.b_out, -10.0, 10.0)
+
 
     def _get_timestamped_checkpoint_path(self, base_path):
         """
@@ -481,12 +452,7 @@ class Trainer:
 
         return timestamped_path
 
-    def train(self,
-              epochs=10,
-              batch_size=20,
-              checkpoint_path="artifacts/training_logs/training_logs.pkl",
-              save_every=10,
-              prompt=""):
+    def train(self, epochs=10, batch_size=20, checkpoint_path="artifacts/model/training_logs.pkl", save_every=10, prompt=""):
         """
         Train the model with JAX autodiff.
         Automatically saves checkpoints with timestamps.
@@ -507,14 +473,19 @@ class Trainer:
 
         # Configure learning rate schedule if enabled
         if self.use_lr_schedule:
-            total_steps = epochs * len(batches)
+            new_steps = epochs * len(batches)
+            current_step = self.optimizer.t
+            total_steps = current_step + new_steps
             self.optimizer.warmup_steps = self.warmup_steps
             self.optimizer.total_steps = total_steps
             self.optimizer.schedule = 'warmup_cosine'
             print(f"Learning rate schedule enabled:")
+            print(f"  - Current step: {current_step}")
             print(f"  - Warmup steps: {self.warmup_steps}")
+            print(f"  - New steps: {new_steps}")
             print(f"  - Total steps: {total_steps}")
             print(f"  - Base LR: {self.lr}")
+            print(f"  - Min LR: {self.min_lr}")
         else:
             print(f"Using constant learning rate: {self.lr}")
 
@@ -591,6 +562,12 @@ class Trainer:
                 final_lr = self.optimizer.lr if not self.use_lr_schedule else self.optimizer.get_lr()
                 print(f"Epoch {epoch+1}/{epochs} complete. Avg loss: {avg_loss:.4f}, Avg LR: {avg_lr:.6f}, Final LR: {final_lr:.6f}")
 
+                # Track training history
+                self.training_history['losses'].append(avg_loss)
+                self.training_history['learning_rates'].append(float(final_lr))
+                self.training_history['epochs_completed'] += 1
+                self.training_history['total_steps'] = int(self.optimizer.t)
+
                 # Save checkpoint with timestamp
                 if (epoch + 1) % save_every == 0:
                     print(f"Saving checkpoint at epoch {epoch+1}...")
@@ -604,7 +581,7 @@ class Trainer:
                         max_length=150,
                     )
                     print(f"Saving checkpoint at epoch {epoch +1}")
-                    self.save_checkpoint(f"artifacts/training_logs/alpaca_epoch{epoch + 1}")
+                    self.save_checkpoint(f"artifacts/model/alpaca_epoch{epoch + 1}")
 
                     print("Prompt: \n", prompt)
                     print("Generated: ", generated_text[0])
@@ -672,9 +649,7 @@ class Trainer:
         return param_counts
 
     def print_model_summary(self):
-        """
-        Print a summary of the model architecture and parameter counts.
-        """
+        """Print a summary of the model architecture and parameter counts."""
         counts = self.count_parameters()
 
         print("="*60)
@@ -712,10 +687,87 @@ class Trainer:
         print(f"Model Size (float16): ~{size_mb:.2f} MB")
         print("="*60)
 
-    def save_checkpoint(self, path="artifacts/training_logs/training_logs.pkl"):
-        """
-        Save model parameters AND optimizer state to file (for resuming training).
-        """
+    def _generate_metadata(self):
+        """Generate comprehensive metadata about the model and training."""
+        from datetime import datetime
+
+        # Calculate parameter counts
+        counts = self.count_parameters()
+
+        # Calculate dataset statistics
+        if self.token_ids:
+            total_tokens = sum(len(ids) for ids in self.token_ids)
+            avg_tokens = total_tokens / len(self.token_ids)
+            max_tokens = max(len(ids) for ids in self.token_ids)
+            min_tokens = min(len(ids) for ids in self.token_ids)
+        else:
+            total_tokens = avg_tokens = max_tokens = min_tokens = 0
+
+        metadata = {
+            "model_info": {
+                "name": "PyGPT",
+                "description": "Transformer-based GPT model trained on instruction-following datasets",
+                "version": "1.0",
+                "created_date": datetime.now().strftime("%Y-%m-%d"),
+                "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            },
+            "architecture": {
+                "type": "Transformer GPT",
+                "backend": "JAX",
+                "total_parameters": counts['total'],
+                "embedding_dim": self.embedding_dim,
+                "num_blocks": self.num_blocks,
+                "num_heads": self.num_heads,
+                "vocab_size": self.tokenizer.vocab_size,
+                "max_seq_length": self.max_seq_length,
+                "ffn_hidden_dim": self.embedding_dim * 4,
+                "dropout": self.dropout,
+                "parameter_breakdown": {
+                    "embedding_layer": counts['embedding'],
+                    "attention_layers": counts['attention'],
+                    "feedforward_layers": counts['feedforward'],
+                    "layer_normalization": counts['layer_norm'],
+                    "output_layer": counts['output']
+                }
+            },
+            "training_data": {
+                "tokenizer": type(self.tokenizer).__name__,
+                "total_examples": len(self.token_ids) if self.token_ids else 0,
+                "total_tokens": total_tokens,
+                "avg_tokens_per_example": round(avg_tokens, 1),
+                "min_tokens": min_tokens,
+                "max_tokens": max_tokens
+            },
+            "training_config": {
+                "batch_size": "varies",  # Not stored in trainer
+                "base_lr": self.lr,
+                "min_lr": self.min_lr,
+                "lr_schedule": "Warmup + Cosine Decay" if self.use_lr_schedule else "Constant",
+                "warmup_steps": self.warmup_steps if self.use_lr_schedule else 0,
+                "optimizer": "AdamW",
+                "beta1": 0.9,
+                "beta2": 0.95,
+                "epsilon": 1e-8
+            },
+            "training_history": {
+                "epochs_completed": self.training_history['epochs_completed'],
+                "total_steps": self.training_history['total_steps'],
+                "losses": self.training_history['losses'][-10:] if self.training_history['losses'] else [],  # Last 10 losses
+                "learning_rates": self.training_history['learning_rates'][-10:] if self.training_history['learning_rates'] else [],  # Last 10 LRs
+                "initial_loss": self.training_history['losses'][0] if self.training_history['losses'] else None,
+                "final_loss": self.training_history['losses'][-1] if self.training_history['losses'] else None
+            },
+            "hardware": {
+                "backend": "JAX",
+                "devices": [str(d) for d in jax.devices()],
+                "precision": "float16"
+            }
+        }
+
+        return metadata
+
+    def save_checkpoint(self, path="artifacts/model/training_logs.pkl"):
+        """Save model parameters AND optimizer state to file (for resuming training)."""
         checkpoint = {
             'embeddings': self.embedding_layer.embeddings,
             'positional_encodings': self.embedding_layer.positional_encodings,
@@ -729,7 +781,9 @@ class Trainer:
                 'lr': self.lr,
                 'vocab_size': self.tokenizer.vocab_size,
                 'embedding_dim': self.embedding_layer.embedding_dim
-            }
+            },
+            'training_history': self.training_history,
+            'metadata': self._generate_metadata()
         }
 
         # Save optimizer state if it exists
@@ -740,10 +794,8 @@ class Trainer:
         with open(path, "wb") as f:
             pickle.dump(checkpoint, f)
 
-    def save_model_only(self, path="artifacts/models/model.pkl"):
-        """
-        Save ONLY model weights (smaller file, for inference only).
-        """
+    def save_model_only(self, path="artifacts/model/model.pkl"):
+        """Save ONLY model weights (smaller file, for inference only)."""
         model_state = {
             'embeddings': self.embedding_layer.embeddings,
             'positional_encodings': self.embedding_layer.positional_encodings,
@@ -755,7 +807,9 @@ class Trainer:
                 'num_heads': self.num_heads,
                 'vocab_size': self.tokenizer.vocab_size,
                 'embedding_dim': self.embedding_layer.embedding_dim
-            }
+            },
+            'training_history': self.training_history,
+            'metadata': self._generate_metadata()
         }
 
         with open(path, "wb") as f:
@@ -763,10 +817,9 @@ class Trainer:
 
         print(f"Model saved to {path} (weights only, no optimizer state)")
 
-    def save_model_npz(self, path="artifacts/models/model.npz"):
-        """
-        Save model weights as compressed NumPy arrays (smallest file size).
-        """
+    def save_model_npz(self, path="artifacts/model/model.npz"):
+        """Save model weights as compressed NumPy arrays (smallest file size)."""
+        import numpy as np
 
         # Collect all parameters as numpy arrays
         save_dict = {
@@ -806,10 +859,8 @@ class Trainer:
         np.savez_compressed(path, **save_dict, config=config)
         print(f"Model saved to {path} (compressed NPZ format)")
 
-    def load_checkpoint(self, path="artifacts/training_logs/training_logs.pkl"):
-        """
-        Load model parameters from file.
-        """
+    def load_checkpoint(self, path="artifacts/model/training_logs.pkl"):
+        """Load model parameters from file."""
         print(f"Loading checkpoint from {path}...")
         print("This may take 1-2 minutes for large files...")
 
@@ -866,18 +917,34 @@ class Trainer:
             self._adam_v = tree.tree_map(lambda p: jnp.zeros_like(p), params_pytree)
             self.optimizer.t = 0
 
+        # Restore training history if available
+        if 'training_history' in checkpoint:
+            self.training_history = checkpoint['training_history']
+            print(f"Loaded training history: {self.training_history['epochs_completed']} epochs completed")
+        else:
+            print("Warning: No training history in checkpoint. Initializing new history.")
+            self.training_history = {
+                'losses': [],
+                'learning_rates': [],
+                'epochs_completed': 0,
+                'total_steps': 0
+            }
+
         print(f"Model parameters restored successfully!")
         if 'config' in checkpoint:
             print(f"Config: {checkpoint['config']}")
+
+        # Display metadata if available
+        if 'metadata' in checkpoint:
+            meta = checkpoint['metadata']
+            print(f"\nModel Metadata:")
+            print(f"  Total Parameters: {meta['architecture']['total_parameters']:,}")
+            if meta['training_history']['final_loss']:
+                print(f"  Final Loss: {meta['training_history']['final_loss']:.4f}")
+
         print("Ready for inference!")
 
-    def generate(self,
-                 prompt:str,
-                 max_length=50,
-                 temperature=0.7,
-                 top_k=40,
-                 repetition_penalty=1.2,
-                 debug=False):
+    def generate(self, prompt, max_length=50, temperature=0.7, top_k=40, repetition_penalty=1.2, debug=False):
         """
         Generate text using the trained model (JAX-based).
 
@@ -991,16 +1058,11 @@ class Trainer:
 
                 token_ids.append(next_token)
 
+                # Stream the token as it's generated
                 print(self.tokenizer.decode([next_token]), end="", flush=True)
 
-        # Decode only the generated tokens (excluding the prompt)
+        # Return the generated token IDs
         generated_token_ids = token_ids[prompt_length:]
-        # try:
-        #     return self.tokenizer.decode(generated_token_ids), generated_token_ids
-        # except (UnicodeDecodeError, Exception) as e:
-        #     print(f"Warning: Decoding error: {e}")
-        #     print(f"Generated token IDs: {generated_token_ids[:20]}...")
-        #     return "[Generation failed - invalid tokens produced]"
         return "", generated_token_ids
 
     # def create_batches(self, batch_size=100):
@@ -1015,17 +1077,9 @@ class Trainer:
     #         ]
     #         batches.append(np.array(padded_batches))
     #     return batches
-
+    
     def create_batches(self, batch_size=100):
-        """
-        Create padded batches.
-
-        Args:
-            batch_size (int): batch size
-
-        Returns:
-            list[list[np.array]]: list containing the padded batches
-        """
+        """Create padded batches."""
         fixed_len = self.max_seq_length
         batches = []
         for i in range(0, len(self.token_ids), batch_size):
@@ -1038,22 +1092,13 @@ class Trainer:
                 padded_batches.append(seq + [0] * (fixed_len - len(seq)))
             batches.append(np.array(padded_batches))
         return batches
-
-
-    def extend_training(self, checkpoint_path:str, epochs=10, batch_size=20, save_every=5):
-        """
-        Extends training from a previous checkpoint
-
-        Args:
-            checkpoint_path (str): Path of checkpoint
-            epochs (int, optional): Number of epochs. Defaults to 10.
-            batch_size (int, optional): Batch size. Defaults to 20.
-            save_every (int, optional): Number of epochs after which model saves log. Defaults to 5.
-        """
+        
+    
+    def extend_training(self, checkpoint_path, epochs=10, batch_size=20, save_every=5, prompt=""):
         print(f"Loading checkpoint from {checkpoint_path}...")
         self.load_checkpoint(checkpoint_path)
 
-        base_name = "artifacts/training_logs/training_logs.pkl"
+        base_name = "artifacts/model/combined_extend.pkl"
         new_checkpoint = self._get_timestamped_checkpoint_path(base_name)
         print(f"Extended training will save to {new_checkpoint}")
 
@@ -1062,7 +1107,23 @@ class Trainer:
             epochs=epochs,
             batch_size=batch_size,
             checkpoint_path=new_checkpoint,
-            save_every=save_every
+            save_every=save_every,
+            prompt=prompt
         )
 
         print(f"Extended training to {new_checkpoint}")
+
+
+
+
+def main():
+    tokenizer = TikToken()
+    print(f"Loaded TikToken tokenizer with vocab size: {tokenizer.vocab_size}")
+
+    user_input = ["Hello world"]
+    trainer = Trainer(tokenizer, user_input, num_blocks=12, num_heads=12)
+
+    trainer.print_model_summary()
+
+if __name__ == '__main__':
+    main()
