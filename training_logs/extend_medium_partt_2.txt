@@ -1,0 +1,179 @@
+Hello World - Starting PyGPT
+M/T/E/ids? Loaded TikToken tokenizer with vocab size: 50304
+Loading checkpoint from artifacts/model/alpaca_epoch50...
+Loading checkpoint from artifacts/model/alpaca_epoch50...
+This may take 1-2 minutes for large files...
+Checkpoint loaded! Restoring model parameters...
+Loaded optimizer state from checkpoint
+Model parameters restored successfully!
+Config: {'num_blocks': 8, 'num_heads': 8, 'lr': 0.0012, 'vocab_size': 50304, 'embedding_dim': 512}
+Ready for inference!
+Extended training will save to artifacts/model/combined_extend_2025-12-06_04-57-47.pkl
+Continuing training for 75 additional epochs...
+Checkpoints will be saved to: artifacts/model/combined_extend_2025-12-06_04-57-47_2025-12-06_04-57-47.pkl
+Learning rate schedule enabled:
+  - Current step: 665570
+  - Warmup steps: 500
+  - New steps: 525450
+  - Total steps: 1191020
+  - Base LR: 0.0012
+  - Min LR: 5e-06
+
+Starting epoch 1/75
+Epoch 1/75 complete. Avg loss: 0.7579, Avg LR: 0.000488, Final LR: 0.000482
+Saving checkpoint at epoch 1...
+
+Starting epoch 2/75
+Epoch 2/75 complete. Avg loss: 0.7544, Avg LR: 0.000477, Final LR: 0.000471
+Saving checkpoint at epoch 2...
+
+Starting epoch 3/75
+Epoch 3/75 complete. Avg loss: 0.7513, Avg LR: 0.000466, Final LR: 0.000461
+Saving checkpoint at epoch 3...
+
+Starting epoch 4/75
+Epoch 4/75 complete. Avg loss: 0.7479, Avg LR: 0.000455, Final LR: 0.000450
+Saving checkpoint at epoch 4...
+
+Starting epoch 5/75
+Epoch 5/75 complete. Avg loss: 0.7449, Avg LR: 0.000445, Final LR: 0.000439
+Saving checkpoint at epoch 5...
+ 1. Identify requirements and strive to stay organized.
+2. Establish relationships with suspects.
+3. Use online courses to create meaningful relationships and differences.Saving checkpoint at epoch 5
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 6/75
+Epoch 6/75 complete. Avg loss: 0.7419, Avg LR: 0.000434, Final LR: 0.000429
+Saving checkpoint at epoch 6...
+
+Starting epoch 7/75
+Epoch 7/75 complete. Avg loss: 0.7389, Avg LR: 0.000423, Final LR: 0.000418
+Saving checkpoint at epoch 7...
+
+Starting epoch 8/75
+Epoch 8/75 complete. Avg loss: 0.7356, Avg LR: 0.000413, Final LR: 0.000408
+Saving checkpoint at epoch 8...
+
+Starting epoch 9/75
+Epoch 9/75 complete. Avg loss: 0.7326, Avg LR: 0.000402, Final LR: 0.000397
+Saving checkpoint at epoch 9...
+
+Starting epoch 10/75
+Epoch 10/75 complete. Avg loss: 0.7298, Avg LR: 0.000392, Final LR: 0.000387
+Saving checkpoint at epoch 10...
+ 1. Develop a accused- regardsed content and well-structured vendors to discuss the content.
+2. Come up with a budget and make a a importest of your financial situation.
+3. Consider how you let me know if needed.Saving checkpoint at epoch 10
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 11/75
+Epoch 11/75 complete. Avg loss: 0.7267, Avg LR: 0.000382, Final LR: 0.000377
+Saving checkpoint at epoch 11...
+
+Starting epoch 12/75
+Epoch 12/75 complete. Avg loss: 0.7237, Avg LR: 0.000372, Final LR: 0.000366
+Saving checkpoint at epoch 12...
+
+Starting epoch 13/75
+Epoch 13/75 complete. Avg loss: 0.7212, Avg LR: 0.000361, Final LR: 0.000356
+Saving checkpoint at epoch 13...
+
+Starting epoch 14/75
+Epoch 14/75 complete. Avg loss: 0.7180, Avg LR: 0.000351, Final LR: 0.000346
+Saving checkpoint at epoch 14...
+
+Starting epoch 15/75
+Epoch 15/75 complete. Avg loss: 0.7152, Avg LR: 0.000341, Final LR: 0.000336
+Saving checkpoint at epoch 15...
+ 1. Set clear goals and objectives each month to stay up-to-date when needed.
+2. Take a moment to create meaningful experiences.
+3. Take a break from the scene and try to see if necessary.Saving checkpoint at epoch 15
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 16/75
+Epoch 16/75 complete. Avg loss: 0.7129, Avg LR: 0.000331, Final LR: 0.000327
+Saving checkpoint at epoch 16...
+
+Starting epoch 17/75
+Epoch 17/75 complete. Avg loss: 0.7100, Avg LR: 0.000322, Final LR: 0.000317
+Saving checkpoint at epoch 17...
+
+Starting epoch 18/75
+Epoch 18/75 complete. Avg loss: 0.7075, Avg LR: 0.000312, Final LR: 0.000307
+Saving checkpoint at epoch 18...
+
+Starting epoch 19/75
+Epoch 19/75 complete. Avg loss: 0.7050, Avg LR: 0.000302, Final LR: 0.000298
+Saving checkpoint at epoch 19...
+
+Starting epoch 20/75
+Epoch 20/75 complete. Avg loss: 0.7024, Avg LR: 0.000293, Final LR: 0.000288
+Saving checkpoint at epoch 20...
+ 1. Find friends and break them into smaller, more manageable pieces. 
+2. Set realistic goals that are tailored to their health and wellbeing. 
+3. Take regular breaks before concerned when needed.Saving checkpoint at epoch 20
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 21/75
+Epoch 21/75 complete. Avg loss: 0.6998, Avg LR: 0.000283, Final LR: 0.000279
+Saving checkpoint at epoch 21...
+
+Starting epoch 22/75
+Epoch 22/75 complete. Avg loss: 0.6971, Avg LR: 0.000274, Final LR: 0.000270
+Saving checkpoint at epoch 22...
+
+Starting epoch 23/75
+Epoch 23/75 complete. Avg loss: 0.6949, Avg LR: 0.000265, Final LR: 0.000260
+Saving checkpoint at epoch 23...
+
+Starting epoch 24/75
+Epoch 24/75 complete. Avg loss: 0.6923, Avg LR: 0.000256, Final LR: 0.000251
+Saving checkpoint at epoch 24...
+
+Starting epoch 25/75
+Epoch 25/75 complete. Avg loss: 0.6898, Avg LR: 0.000247, Final LR: 0.000243
+Saving checkpoint at epoch 25...
+ Three best practices to start an conversation are: 1) enjoy working on your email and that it's important, and make sure you're excited about the situation. 2) Focus on the reference of your email. 3) Producing your email to support the urgency.Saving checkpoint at epoch 25
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 26/75
+Epoch 26/75 complete. Avg loss: 0.6875, Avg LR: 0.000238, Final LR: 0.000234
+Saving checkpoint at epoch 26...
+
+Starting epoch 27/75
+Epoch 27/75 complete. Avg loss: 0.6851, Avg LR: 0.000230, Final LR: 0.000225
+Saving checkpoint at epoch 27...
+
+Starting epoch 28/75
+Epoch 28/75 complete. Avg loss: 0.6829, Avg LR: 0.000221, Final LR: 0.000217
+Saving checkpoint at epoch 28...
+
+Starting epoch 29/75
+Epoch 29/75 complete. Avg loss: 0.6806, Avg LR: 0.000213, Final LR: 0.000208
+Saving checkpoint at epoch 29...
+
+Starting epoch 30/75
+Epoch 30/75 complete. Avg loss: 0.6781, Avg LR: 0.000204, Final LR: 0.000200
+Saving checkpoint at epoch 30...
+ Some common practices for starting a conversation include setting clear objectives, finding an opportunity to work and manage stress. Developing a detailed approach, Taking regular breaks throughout the day, engaging in physical activity such as taking care of kids and being mindful of eating plenty- modes of diet, and teaching Police that they are not being completed.Saving checkpoint at epoch 30

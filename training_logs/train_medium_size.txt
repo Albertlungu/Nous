@@ -1,0 +1,316 @@
+Hello World - Starting PyGPT
+M/T/E/ids? This code is running.
+Loaded TikToken tokenizer with vocab size: 50304
+============================================================
+Appended training texts to list
+============================================================
+============================================================
+MODEL SUMMARY
+============================================================
+MODEL ARCHITECTURE SUMMARY
+============================================================
+JAX Backend:          gpu
+JAX Devices:          [CudaDevice(id=0)]
+Device Type:          NVIDIA GeForce RTX 5090
+------------------------------------------------------------
+Vocabulary Size:      50,304
+Embedding Dimension:  512
+Max Sequence Length:  256
+Number of Blocks:     8
+Number of Heads:      8
+FFN Hidden Dimension: 2048
+============================================================
+PARAMETER COUNTS
+============================================================
+Embedding Layer:        25,886,720 parameters
+Attention Layers:        8,388,608 parameters
+FeedForward Layers:     16,797,696 parameters
+Layer Normalization:        16,384 parameters
+Output Layer:           25,805,952 parameters
+------------------------------------------------------------
+TOTAL:                  76,895,360 parameters
+============================================================
+Model Size (float16): ~146.67 MB
+============================================================
+============================================================
+Training model.
+Checkpoints will be saved to: artifacts/model/alpaca284_2025-12-04_17-31-00.pkl
+Learning rate schedule enabled:
+  - Current step: 0
+  - Warmup steps: 500
+  - New steps: 525450
+  - Total steps: 525450
+  - Base LR: 0.0011
+  - Min LR: 5e-06
+
+Starting epoch 1/75
+Epoch 1/75 complete. Avg loss: 4.6621, Avg LR: 0.001061, Final LR: 0.001100
+Saving checkpoint at epoch 1...
+
+Starting epoch 2/75
+Epoch 2/75 complete. Avg loss: 3.5076, Avg LR: 0.001099, Final LR: 0.001098
+Saving checkpoint at epoch 2...
+
+Starting epoch 3/75
+Epoch 3/75 complete. Avg loss: 3.0877, Avg LR: 0.001097, Final LR: 0.001096
+Saving checkpoint at epoch 3...
+
+Starting epoch 4/75
+Epoch 4/75 complete. Avg loss: 2.8224, Avg LR: 0.001094, Final LR: 0.001093
+Saving checkpoint at epoch 4...
+
+Starting epoch 5/75
+Epoch 5/75 complete. Avg loss: 2.6195, Avg LR: 0.001091, Final LR: 0.001088
+Saving checkpoint at epoch 5...
+ 1. earn the when you want to do what the background and time- fast.
+2. Take two hours each time over each corner.
+3. Use the first step over a day: Behering to your book the background.Saving checkpoint at epoch 5
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 6/75
+Epoch 6/75 complete. Avg loss: 2.4506, Avg LR: 0.001086, Final LR: 0.001083
+Saving checkpoint at epoch 6...
+
+Starting epoch 7/75
+Epoch 7/75 complete. Avg loss: 2.3084, Avg LR: 0.001080, Final LR: 0.001077
+Saving checkpoint at epoch 7...
+
+Starting epoch 8/75
+Epoch 8/75 complete. Avg loss: 2.1844, Avg LR: 0.001074, Final LR: 0.001070
+Saving checkpoint at epoch 8...
+
+Starting epoch 9/75
+Epoch 9/75 complete. Avg loss: 2.0738, Avg LR: 0.001066, Final LR: 0.001062
+Saving checkpoint at epoch 9...
+
+Starting epoch 10/75
+Epoch 10/75 complete. Avg loss: 1.9754, Avg LR: 0.001058, Final LR: 0.001053
+Saving checkpoint at epoch 10...
+ Three best practices for starting a conversation are:- who is easy, more effective, and easy to find; when you getting a work.Saving checkpoint at epoch 10
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 11/75
+Epoch 11/75 complete. Avg loss: 1.8879, Avg LR: 0.001048, Final LR: 0.001044
+Saving checkpoint at epoch 11...
+
+Starting epoch 12/75
+Epoch 12/75 complete. Avg loss: 1.8102, Avg LR: 0.001038, Final LR: 0.001033
+Saving checkpoint at epoch 12...
+
+Starting epoch 13/75
+Epoch 13/75 complete. Avg loss: 1.7416, Avg LR: 0.001027, Final LR: 0.001022
+Saving checkpoint at epoch 13...
+
+Starting epoch 14/75
+Epoch 14/75 complete. Avg loss: 1.6805, Avg LR: 0.001015, Final LR: 0.001009
+Saving checkpoint at epoch 14...
+
+Starting epoch 15/75
+Epoch 15/75 complete. Avg loss: 1.6271, Avg LR: 0.001003, Final LR: 0.000996
+Saving checkpoint at epoch 15...
+ Three best practices for starting a conversation can be done by giving yourself how to prepare it in order to help you beSaving checkpoint at epoch 15
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 16/75
+Epoch 16/75 complete. Avg loss: 1.5785, Avg LR: 0.000989, Final LR: 0.000982
+Saving checkpoint at epoch 16...
+
+Starting epoch 17/75
+Epoch 17/75 complete. Avg loss: 1.5352, Avg LR: 0.000975, Final LR: 0.000968
+Saving checkpoint at epoch 17...
+
+Starting epoch 18/75
+Epoch 18/75 complete. Avg loss: 1.4961, Avg LR: 0.000960, Final LR: 0.000952
+Saving checkpoint at epoch 18...
+
+Starting epoch 19/75
+Epoch 19/75 complete. Avg loss: 1.4605, Avg LR: 0.000945, Final LR: 0.000936
+Saving checkpoint at epoch 19...
+
+Starting epoch 20/75
+Epoch 20/75 complete. Avg loss: 1.4277, Avg LR: 0.000928, Final LR: 0.000920
+Saving checkpoint at epoch 20...
+ - Make sure everyone is struggling more likely to take and understand how each person is able to understand each other and leading their tips. 
+- Put yourself in the same field and be aware of what I want to do.
+- Create a specific destination or friends to create a living environment that can change your balance.
+- Play activities such as walking or swimming, for at least 3 people together in the evening. 
+- Keep your mind up and maintain your hidden journey to the scene.Saving checkpoint at epoch 20
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 21/75
+Epoch 21/75 complete. Avg loss: 1.3976, Avg LR: 0.000911, Final LR: 0.000902
+Saving checkpoint at epoch 21...
+
+Starting epoch 22/75
+Epoch 22/75 complete. Avg loss: 1.3693, Avg LR: 0.000893, Final LR: 0.000884
+Saving checkpoint at epoch 22...
+
+Starting epoch 23/75
+Epoch 23/75 complete. Avg loss: 1.3435, Avg LR: 0.000875, Final LR: 0.000866
+Saving checkpoint at epoch 23...
+
+Starting epoch 24/75
+Epoch 24/75 complete. Avg loss: 1.3196, Avg LR: 0.000856, Final LR: 0.000847
+Saving checkpoint at epoch 24...
+
+Starting epoch 25/75
+Epoch 25/75 complete. Avg loss: 1.2965, Avg LR: 0.000837, Final LR: 0.000827
+Saving checkpoint at epoch 25...
+ 1. Develop a well-st funded and preparation: You can use some of the most effective strategies to complete your tasks and make sure you have the appropriate time management.
+2. Offer positive support: Allow for more time to be talks on this
+3. Make it comfortable for yourself andSaving checkpoint at epoch 25
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 26/75
+Epoch 26/75 complete. Avg loss: 1.2753, Avg LR: 0.000817, Final LR: 0.000807
+Saving checkpoint at epoch 26...
+
+Starting epoch 27/75
+Epoch 27/75 complete. Avg loss: 1.2555, Avg LR: 0.000797, Final LR: 0.000787
+Saving checkpoint at epoch 27...
+
+Starting epoch 28/75
+Epoch 28/75 complete. Avg loss: 1.2362, Avg LR: 0.000776, Final LR: 0.000766
+Saving checkpoint at epoch 28...
+
+Starting epoch 29/75
+Epoch 29/75 complete. Avg loss: 1.2180, Avg LR: 0.000755, Final LR: 0.000744
+Saving checkpoint at epoch 29...
+
+Starting epoch 30/75
+Epoch 30/75 complete. Avg loss: 1.2011, Avg LR: 0.000733, Final LR: 0.000723
+Saving checkpoint at epoch 30...
+ 1. Set clear goals and expectations
+2. Take time to joined yourself.
+3. Set specific dedication and learn to become track progress.Saving checkpoint at epoch 30
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 31/75
+Epoch 31/75 complete. Avg loss: 1.1845, Avg LR: 0.000712, Final LR: 0.000701
+Saving checkpoint at epoch 31...
+
+Starting epoch 32/75
+Epoch 32/75 complete. Avg loss: 1.1690, Avg LR: 0.000690, Final LR: 0.000678
+Saving checkpoint at epoch 32...
+
+Starting epoch 33/75
+Epoch 33/75 complete. Avg loss: 1.1542, Avg LR: 0.000667, Final LR: 0.000656
+Saving checkpoint at epoch 33...
+
+Starting epoch 34/75
+Epoch 34/75 complete. Avg loss: 1.1398, Avg LR: 0.000645, Final LR: 0.000633
+Saving checkpoint at epoch 34...
+
+Starting epoch 35/75
+Epoch 35/75 complete. Avg loss: 1.1259, Avg LR: 0.000622, Final LR: 0.000611
+Saving checkpoint at epoch 35...
+ 1. Develop an engaging question: Suggest models to express your vision and accuracy.
+2. Set a clear, deepened conversation with the first thing.
+3. Offer open-ended questions that are useful in developing healthy lifestyle.Saving checkpoint at epoch 35
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 36/75
+Epoch 36/75 complete. Avg loss: 1.1130, Avg LR: 0.000599, Final LR: 0.000588
+Saving checkpoint at epoch 36...
+
+Starting epoch 37/75
+Epoch 37/75 complete. Avg loss: 1.1002, Avg LR: 0.000576, Final LR: 0.000565
+Saving checkpoint at epoch 37...
+
+Starting epoch 38/75
+Epoch 38/75 complete. Avg loss: 1.0881, Avg LR: 0.000553, Final LR: 0.000542
+Saving checkpoint at epoch 38...
+
+Starting epoch 39/75
+Epoch 39/75 complete. Avg loss: 1.0765, Avg LR: 0.000530, Final LR: 0.000519
+Saving checkpoint at epoch 39...
+
+Starting epoch 40/75
+Epoch 40/75 complete. Avg loss: 1.0650, Avg LR: 0.000507, Final LR: 0.000496
+Saving checkpoint at epoch 40...
+ 1. Developing a simple and preferred conversation that is specific and must be agreed upon taking an lead to increased stress.
+2. Set achievable goals and difference between each other and your commitment.
+3. Use a safe practice to improve relationships without leaving the goal.Saving checkpoint at epoch 40
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 41/75
+Epoch 41/75 complete. Avg loss: 1.0544, Avg LR: 0.000485, Final LR: 0.000473
+Saving checkpoint at epoch 41...
+
+Starting epoch 42/75
+Epoch 42/75 complete. Avg loss: 1.0440, Avg LR: 0.000462, Final LR: 0.000451
+Saving checkpoint at epoch 42...
+
+Starting epoch 43/75
+Epoch 43/75 complete. Avg loss: 1.0338, Avg LR: 0.000439, Final LR: 0.000428
+Saving checkpoint at epoch 43...
+
+Starting epoch 44/75
+Epoch 44/75 complete. Avg loss: 1.0239, Avg LR: 0.000417, Final LR: 0.000406
+Saving checkpoint at epoch 44...
+
+Starting epoch 45/75
+Epoch 45/75 complete. Avg loss: 1.0145, Avg LR: 0.000395, Final LR: 0.000384
+Saving checkpoint at epoch 45...
+ 1. Create a clear discuss and announce a deal with the conversation of each other.
+2. Set clear tips to stay organized and multiplied in the detailed purposes.
+3. Take deep breaks throughout the problems and stay focused on the necessary equipment.Saving checkpoint at epoch 45
+Prompt: 
+ Instruction: List three best practices for starting a conversation.
+Input: 
+Output:
+Generated:  
+
+Starting epoch 46/75
+Epoch 46/75 complete. Avg loss: 1.0054, Avg LR: 0.000373, Final LR: 0.000362
+Saving checkpoint at epoch 46...
+
+Starting epoch 47/75
+Epoch 47/75 complete. Avg loss: 0.9962, Avg LR: 0.000352, Final LR: 0.000341
+Saving checkpoint at epoch 47...
+
+Starting epoch 48/75
+Epoch 48/75 complete. Avg loss: 0.9876, Avg LR: 0.000330, Final LR: 0.000320
+Saving checkpoint at epoch 48...
+
+Starting epoch 49/75
+Epoch 49/75 complete. Avg loss: 0.9795, Avg LR: 0.000310, Final LR: 0.000299
+Saving checkpoint at epoch 49...
+
+Starting epoch 50/75
+Epoch 50/75 complete. Avg loss: 0.9714, Avg LR: 0.000289, Final LR: 0.000279
+Saving checkpoint at epoch 50...
+ 1. Take a break to relax – get started on it and make sure they are fun the most.
+2. Make a plan - getting enough rest and work can help them be, such as theSaving checkpoint at epoch 50
