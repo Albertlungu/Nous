@@ -41,82 +41,6 @@ def save_token_ids(output_path):
     with open(output_path, "wb") as f:
         pickle.dump(token_ids, f)
 
-def inspect_model(model_path="artifacts/models/model.pkl"):
-    """
-    Inspect a model checkpoint and display its metadata.
-    """
-    print("="*80)
-    print(f"INSPECTING MODEL: {model_path}")
-    print("="*80)
-
-    try:
-        with open(model_path, "rb") as f:
-            checkpoint = pickle.load(f)
-
-        # Display available keys
-        print("\nCheckpoint contains:")
-        for key in checkpoint.keys():
-            print(f"  - {key}")
-
-        # Display metadata if available
-        if 'metadata' in checkpoint:
-            meta = checkpoint['metadata']
-            print("\n" + "="*80)
-            print("MODEL METADATA")
-            print("="*80)
-
-            print(f"\nModel Info:")
-            print(f"  Name: {meta['model_info']['name']}")
-            print(f"  Version: {meta['model_info']['version']}")
-            print(f"  Last Updated: {meta['model_info']['last_updated']}")
-
-            print(f"\nArchitecture:")
-            print(f"  Total Parameters: {meta['architecture']['total_parameters']:,}")
-            print(f"  Embedding Dimension: {meta['architecture']['embedding_dim']}")
-            print(f"  Blocks: {meta['architecture']['num_blocks']}")
-            print(f"  Attention Heads: {meta['architecture']['num_heads']}")
-            print(f"  Vocabulary Size: {meta['architecture']['vocab_size']:,}")
-
-            print(f"\nTraining Data:")
-            print(f"  Total Examples: {meta['training_data']['total_examples']:,}")
-            print(f"  Total Tokens: {meta['training_data']['total_tokens']:,}")
-            print(f"  Avg Tokens/Example: {meta['training_data']['avg_tokens_per_example']}")
-
-            print(f"\nTraining History:")
-            print(f"  Epochs Completed: {meta['training_history']['epochs_completed']}")
-            print(f"  Total Steps: {meta['training_history']['total_steps']:,}")
-            if meta['training_history']['initial_loss']:
-                print(f"  Initial Loss: {meta['training_history']['initial_loss']:.4f}")
-            if meta['training_history']['final_loss']:
-                print(f"  Final Loss: {meta['training_history']['final_loss']:.4f}")
-
-            if meta['training_history']['losses']:
-                print(f"\n  Recent losses (last 10 epochs):")
-                for i, loss in enumerate(meta['training_history']['losses']):
-                    print(f"    Epoch -{len(meta['training_history']['losses'])-i}: {loss:.4f}")
-
-        else:
-            print("\nNo metadata found in checkpoint.")
-
-        # Display training history if available
-        if 'training_history' in checkpoint:
-            hist = checkpoint['training_history']
-            print("\n" + "="*80)
-            print("TRAINING HISTORY")
-            print("="*80)
-            print(f"Epochs Completed: {hist['epochs_completed']}")
-            print(f"Total Steps: {hist['total_steps']}")
-            print(f"Losses tracked: {len(hist['losses'])}")
-            if hist['losses']:
-                print(f"Loss range: {min(hist['losses']):.4f} - {max(hist['losses']):.4f}")
-
-        print("\n" + "="*80)
-
-    except FileNotFoundError:
-        print(f"Error: Model file not found at {model_path}")
-    except Exception as e:
-        print(f"Error loading model: {e}")
-
 def analyze_training():
     """
     Analyze and visualize training progress across all training runs.
@@ -402,24 +326,75 @@ def main():
         # print(f"Generated: '{generated_text[0]}'")
         print()
 
+def user_input():
+
+    print("You will be asked two questions, one for the instruction the model is meant to complete, and the other for the input it requires. Respond appropriately.")
+
+    time.sleep(2)
+
+    instruction = input("Please enter your instruction here: ")
+    argument = input("Please enter your input here, or leave it blank: ")
+
+    prompt = f"Instruction: {instruction}\n" + f"Input: {argument}\n" + f"Output: \n"
+
+    print("Loading tokenizer...")
+    tokenizer = TikToken()
+
+    trainer = Trainer(
+        tokenizer=tokenizer,
+        # token_ids=token_ids,
+        lr=6e-4,  # Slightly higher base LR with schedule
+        num_blocks=8,  # Must match checkpoint!
+        num_heads=8,   # Must match checkpoint!
+        embedding_dim=512,  # Must match checkpoint!
+        max_seq_length=256,  # Chunk long sequences to avoid memory issues
+        dropout=0.0,
+        use_lr_schedule=True,  # Enable warmup + cosine decay
+        warmup_steps=500,  # Warmup for first 500 steps
+        min_lr=1e-5  # Minimum learning rate floor
+    )
+
+    checkpoint_path = "artifacts/models/epoch155.pkl"
+    print("Loaded checkpoint.")
+
+    try:
+        trainer.load_checkpoint(checkpoint_path)
+    except FileNotFoundError():
+        print(f"ERROR: No checkpoint found at {checkpoint_path}. Please verify to ensure it exists.")
+
+    print("="*60)
+    print(f"Your prompt: \n")
+    print(prompt)
+    print("="*60)
+    print("Generated: \n")
+    generated_text = trainer.generate(
+            prompt,
+            max_length=400,
+        )
+    print("\n")
+
 
 if __name__ == "__main__":
     print("Hello World - Starting PyGPT")
     start = time.time()
 
-    main_or_train = input("M/T/E/A/I/ids? ")
+    main_or_train = input("""
+To train the model from scratch, please enter 't'
+To extend from a previous checkpoint, please enter 'e'
+To use the main function, where the model responds to harcoded inputs that come directly from the training data, please enter 'm'
+To analyze the current model, please enter 'a'
+Or, to enter your own user input, please enter 'i':
+""")
     if main_or_train.lower() == 't':
         train()
     elif main_or_train.lower() == 'e':
         extend()
     elif main_or_train.lower() == 'a':
         analyze_training()
-    elif main_or_train.lower() == 'i':
-        inspect_model()
     elif main_or_train.lower() == "ids":
         save_token_ids("training_data/alpaca_tokenized.pkl")
     else:
-        main()
+        user_input()
 
     # main()
 
