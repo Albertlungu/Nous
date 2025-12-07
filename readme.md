@@ -26,7 +26,25 @@ cd PyGPT
 ./cuda_setup.sh
 ```
 
-Ngl if ur not on either of these ur lowkey cooked...
+Ngl if ur not on either of these ur lowkey cooked for training. Generation should still work fine on CPU, but it might be a lil slow.
+
+### Using the program:
+To use this program, assuming all earlier steps have been completed:
+```bash
+python src/main.py
+```
+
+Then, follow the instructions given to you in the command line. It should look like this once the code is run:
+```markdown
+Hello World - Starting PyGPT
+
+To train the model from scratch, please enter 't'
+To extend from a previous checkpoint, please enter 'e'
+To use the main function, where the model responds to model inputs that it should know how to answer, please enter 'm'
+To analyze the current model, please enter 'a'
+Or, to enter your own user input, please enter 'i':
+```
+
 
 ## Libraries used
 - numpy
@@ -88,9 +106,28 @@ Last Modified: December 6, 2025 23:48
 **Loss curve:**
 ![alt text](concepts/assets/image.png)
 
+**Example outputs at this stage:**
+```
+============================================================
+Prompt: Instruction: List three best practices for starting a conversation.
+Input:
+Output:
+============================================================
+
+1. Set realistic goals and break tasks according to the parkedins.
+2. Take care of your distractions and set achievable goals.
+3. Offer work-life balance that are more productive when needed.
+4. stumbled on more their own time using documents such as meal or a homes, and take advantage of the solutions to your learning process.
+============================================================
+Prompt: Instruction: Describe an interesting article you read recently.
+Input:
+Output:
+============================================================
+ One interesting blog about the importance of digital marketing is a successful audience of rising sales and increasing delivery. With a variety of products, products and services, there are an effective way to build a business. Getty 87 is a good source of industry and a potential campaigns to carry out significant issues, and can be the case as well as the current, a potential advocate for access to digital media, a potential industry that can be supported through online marketing and advertising campaigns.
+```
+
 ## Installation and Setup (MacOS METAL)
 This program requires the use of older Python releases, most notably 3.10.x. To do this, I recommend using PyEnv. The instructions for this are given below. Or, you could simply use the `./metal_setup.sh` file after cloning.
-
 
 ```bash
 git clone JAX https://github.com/Albertlungu/PyGPT.git
