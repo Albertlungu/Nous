@@ -37,6 +37,57 @@ Ngl if ur not on either of these ur lowkey cooked...
 - os
 - matplotlib
 
+## The current model
+The current fully trained model (which is kind of stupid) can be found in `artifacts/models/epoch155.pkl`. Its stats are as follows:
+
+**Datasets used:**
+- Alpaca dataset: 51,974 examples (20MB, 284,280 lines)
+- WizardLM dataset: 70,004 examples (126MB, 1,537,373 lines)
+- FLAN 50K dataset: 50,000 examples (87MB, 1,962,003 lines)
+- GPT Teacher Dataset: 89,260 examples (55MB, 534,010 lines)
+> 39 657 127 total tokens
+>
+> 88.4 average tokens per example
+>
+> Token range: 2 - 4,317 tokens
+>
+> Total text size: 2,701,520 lines
+>
+> Text format: Instruction-Input-Output triplets
+
+**Model architecture**:
+
+*Total parameters*: ~ 77 million (76,895,360)
+  - Embedding Layer:     25,886,720 parameters
+  - Attention Layers:    8,388,608 parameters
+  - FeedForward Layers:  16,797,696 parameters
+  - Layer Normalization: 16,384 parameters
+  - Output Layer:        25,805,952 parameters
+
+*Configuration:*
+  - Vocabulary Size:           50,304 (TikToken tokenizer)
+  - Embedding Dimension:       512
+  - Number of Blocks:          8
+  - Number of Attention Heads: 8
+  - Max Sequence Length:       256
+  - FFN Hidden Dimension:      2,048
+
+**Training config:**
+- Total number of epochs: 155 (loss 4.66 -> 0.62)
+  - First train run:    45 epochs (loss 4.66 -> 1.01)
+  - First extend run:   50 epochs (loss 1.01 -> 0.76)
+  - Second extend run:  25 epochs (loss 0.76 -> 0.69)
+  - Third extend run:   35 epochs (loss 0.69 -> 0.62)
+
+File Path: PyGPT/artifacts/models/model.pkl
+File Size: 881 MB (full checkpoint with optimizer state)
+Model Size (float16): ~146.67 MB (weights only)
+Format: Pickle (.pkl)
+Last Modified: December 6, 2025 23:48
+
+**Loss curve:**
+![alt text](concepts/assets/image.png)
+
 ## Installation and Setup (MacOS METAL)
 This program requires the use of older Python releases, most notably 3.10.x. To do this, I recommend using PyEnv. The instructions for this are given below. Or, you could simply use the `./metal_setup.sh` file after cloning.
 
