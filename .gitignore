@@ -15,3 +15,11 @@ venv
 
 *.VSCodeCounter
 alpaca284*.pkl
+
+electron-app/node_modules
+dist/
+out/
+build/
+release/
+tmp/
+*.log
