@@ -3,9 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:5000">
+    <title>PyGPT</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <div id="app">
+        <header>
+            <h1>PyGPT</h1>
+            <div id="status-bar">
+                <span id="model-status">No model loaded</span>
+                <span id="server-status">Connecting...</span>
+            </div>
+        </header>
+
+        <main>
+            <nav id="sidebar">
+                <button class="nav-btn active" data-view="chat">Chat</button>
+                <button class="nav-btn" data-view="model">Model Config</button>
+                <button class="nav-btn" data-view="training">Training</button>
+                <button class="nav-btn" data-view="datasets">Datasets</button>
+            </nav>
+
+            <div id="content">
+                <div id="chat-view" class="view active">
+                    <div id="chat-container">
+                        <div id="messages"></div>
+                    </div>
+                    <div id="input-area">
+                        <textarea id="prompt-input" placeholder="What shall we ruminate today?"></textarea>
+                        <button id="send-btn">Send</button>
+                        <button id="stop-btn" style="display: none;">Stop</button>
+                    </div>
+                    <div id="generation-controls">
+                        <label>Max Tokens: <input type="number" id="max-tokens" value="100" min="1" max="2000"></label>
+                        <label>Temperature: <input type="number" id="temperature" value="0.7" min="0" max="2" step="0.1"></label>
+                        <label>Top-k: <input type="number" id="top-k" value="40" min="1" max="100"></label>
+                    </div>
+                </div>
+                <div id="model-view" class="view">
+                    <h2>Model Management</h2>
+                    <div id="model-list"></div>
+                    <button id="load-model-btn">Load Model</button>
+                    <button id="unload-model-btn">Unload Model</button>
+                    <div id="model-info"></div>
+                </div>
+
+                <div id="training-view" class="view">
+                    <h2>Training</h2>
+                    <div id="training-status"></div>
+                    <button id="start-training-btn">Start Training</button>
+                    <button id="stop-training-btn">Stop Training</button>
+                    <button id="pause-training-btn">Pause Training</button>
+                    <button id="resume-training-btn">Resume Training</button>
+                    <div id="training-history"></div>
+                </div>
+
+                <div id="datasets-view" class="view">
+                    <h2>Datasets</h2>
+                    <div id="dataset-list"></div>
+                    <button id="add-dataset-btn">Add Dataset</button>
+                    <button id="remove-dataset-btn">Remove Dataset</button>
+                    <div id="dataset-info"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="components/chat.js"></script>
+    <script src="components/model-config.js"></script>
+    <script src="components/training.js"></script>
+    <script src="components/datasets.js"></script>
+    <script src="app.js"></script>
 
 </body>
 </html>
