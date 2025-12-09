@@ -13,6 +13,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    // Use ESC to stop generation (like in Claude)
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isGenerating) {
+            isGenerating = false;
+            if (stopBtn) stopBtn.style.display = 'none';
+            if (sendBtn) sendBtn.style.display = 'block';
+        }
+    });
+
     sendBtn.addEventListener('click', handleSend);
 
     // Send message on Enter (Shift+Enter for new line)
@@ -35,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleSend() {
         if (isGenerating) return;
 
+        // Check if server is healthy and model is loaded
         try {
             const healthCheck = await fetch('http:127.0.0.1:5000/api/health');
             const health = await healthCheck.json();
@@ -60,7 +70,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const temperature = parseFloat(document.getElementById('temperature')?.value || 0.7)
         const topK = parseInt(document.getElementById('top-k')?.value || 40);
 
-        // Show user message
+        // Show user message with context if given
+        const userMessage = context
+            ? `${instruction}\n\nContext: ${context}`
+            : instruction;
         addMessage('user', instruction);
 
         // Clear input
@@ -69,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Show stop button
         isGenerating = true;
-        sendBtn.style.display = 'none';
+        if (sendBtn) sendBtn.style.display = 'none';
         if (stopBtn) stopBtn.style.display = 'block';
 
         // Show loading indicator
@@ -106,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showError(`Failed to generate response: ${error.message}`);
         } finally {
             isGenerating = false;
-            sendBtn.style.display = 'block';
+            if (sendBtn) sendBtn.style.display = 'block';
             if (stopBtn) stopBtn.style.display = 'none';
         }
     }
