@@ -79,6 +79,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
+                if (response.status === 400) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'No model loaded. Please load a model first.');
+                }
                 throw new Error(`Server error: ${response.status}`);
             }
 
