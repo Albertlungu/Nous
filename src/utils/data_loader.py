@@ -107,18 +107,19 @@ def save_wizardlm(path:str) -> None:
 
 def save_flan(path:str) -> None:
     """
-    Load the FLAN 50K dataset from HuggingFace
+    Load the FLAN 50K dataset from HuggingFace using streaming
     Dataset size: 50,000 examples (87MB, 1,962,003 lines)
 
     Args:
         path (str): Output file path for the formatted dataset
     """
-    print("Loading FLAN 50K dataset...")
+    print("Loading FLAN 50K dataset with streaming...")
     ds_len = 0
-    ds = load_dataset("Muennighoff/flan")
+    ds = load_dataset("Muennighoff/flan", streaming=True)
     ds = ds['train']
-    ds = ds.select(range(ds_len)) if ds_len > 0 else ds
-    print(f"Loaded {len(ds)} examples")
+
+    if ds_len > 0:
+        ds = ds.take(ds_len)
 
     print(f"Writing to {path}...")
     with open(path, "w", encoding="utf-8") as f:
@@ -135,9 +136,9 @@ def save_flan(path:str) -> None:
             f.write(text + "\n\n")
 
             if (idx + 1) % 1000 == 0:
-                print(f"Processed {idx + 1}/{len(ds)} examples")
+                print(f"Processed {idx + 1} examples")
 
-    print(f"Successfully saved {len(ds)} examples to {path}")
+    print(f"Successfully saved {idx + 1} examples to {path}")
 
 def save_gpt_teacher(path:str) -> None:
     """
