@@ -95,6 +95,8 @@ def generate_response():
     Generate response
     """
     data = request.json
+    instruction = data.get('prompt', '')
+    context = data.get('context', '')
     prompt = data.get('prompt', '')
     max_tokens = data.get('max_tokens', 100)
     temperature = data.get('temperature', 0.7)
@@ -103,9 +105,14 @@ def generate_response():
     if not model_interface.is_loaded():
         return jsonify({"error": "No model loaded"}), 400
 
+    if context:
+        formatted_prompt = f"Instruction {instruction}\nInput: {context}\nOutput:"
+    else:
+        formatted_prompt = f"Instruction: {instruction}\nInput:\nOutput:"
+
     def generate():
         try:
-            for token in model_interface.generate_stream(prompt, max_tokens, temperature, top_k):
+            for token in model_interface.generate_stream(formatted_prompt, max_tokens, temperature, top_k):
                 yield f"data: {json.dumps({'token': token})}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
