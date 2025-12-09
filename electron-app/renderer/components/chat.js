@@ -1,7 +1,3 @@
-const { error } = require("three");
-const { remove } = require("three/examples/jsm/libs/tween.module.js");
-const { context } = require("three/tsl");
-
 // Chat functionality
 let isGenerating = false;
 
@@ -48,8 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Get generation parameters
-        const maxTokens = paresInt(document.getElementById('max-tokens')?.value || 100);
-        const temperature = parseFloat(document.getElementById('temeperature')?.value || 0.7)
+        const maxTokens = parseInt(document.getElementById('max-tokens')?.value || 100);
+        const temperature = parseFloat(document.getElementById('temperature')?.value || 0.7)
         const topK = parseInt(document.getElementById('top-k')?.value || 40);
 
         // Show user message
@@ -189,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'message-loading';
         loadingDiv.innerHTML = '<span></span><span></span><span></span>';
-        loadingDiv.id = `loading-${Date.now}`;
+        loadingDiv.id = `loading-${Date.now()}`;
 
         messagesContainer.appendChild(loadingDiv);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
