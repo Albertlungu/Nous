@@ -387,6 +387,8 @@ Or, to enter your own user input, please enter 'i':
 """)
     if main_or_train.lower() == 't':
         train()
+    elif main_or_train.lower() == 'm':
+        main()
     elif main_or_train.lower() == 'e':
         extend()
     elif main_or_train.lower() == 'a':
