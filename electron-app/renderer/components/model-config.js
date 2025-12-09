@@ -47,30 +47,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showModelSelector(models) {
-        const html = `
-            <div style="margin-top: 20px;">
-                <h3 style="font-size: 16px; margin-bottom: 12px; color: var(--text-primary);">Select a model to load:</h3>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    ${models.map((model, index) => `
-                        <div class="list-item" style="cursor: pointer;" onclick="window.selectModel('${model.path}')">
-                            <div>
-                                <div class="list-item-title">${model.name}</div>
-                                <div class="list-item-meta">
-                                    ${model.size_mb.toFixed(2)} MB "
-                                    ${new Date(model.modified * 1000).toLocaleString()}
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
+        const container = document.createElement('div');
+        container.style.marginTop = '20px';
 
-        modelInfo.innerHTML = html;
+        const title = document.createElement('h3');
+        title.style.cssText = 'font-size: 16px; margin-bottom: 12px; color: var(--text-primary);';
+        title.textContent = 'Select a model to load:';
+
+        const listContainer = document.createElement('div');
+        listContainer.style.cssText = 'display: flex; flex-direction: column; gap: 8px;';
+
+        models.forEach(model => {
+            const item = document.createElement('div');
+            item.className = 'list-item';
+            item.style.cursor = 'pointer';
+
+            const itemContent = document.createElement('div');
+
+            const itemTitle = document.createElement('div');
+            itemTitle.className = 'list-item-title';
+            itemTitle.textContent = model.name;
+
+            const itemMeta = document.createElement('div');
+            itemMeta.className = 'list-item-meta';
+            itemMeta.textContent = `${model.size_mb.toFixed(2)} MB • ${new Date(model.modified * 1000).toLocaleString()}`;
+
+            itemContent.appendChild(itemTitle);
+            itemContent.appendChild(itemMeta);
+            item.appendChild(itemContent);
+
+            // Add click handler directly
+            item.addEventListener('click', () => {
+                selectModel(model.path);
+            });
+
+            listContainer.appendChild(item);
+        });
+
+        container.appendChild(title);
+        container.appendChild(listContainer);
+
+        modelInfo.innerHTML = '';
+        modelInfo.appendChild(container);
     }
 
     // Global function for model selection
-    window.selectModel = async function(modelPath) {
+    async function selectModel(modelPath) {
         try {
             showModelInfo('Loading model...');
 
