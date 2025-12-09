@@ -28,7 +28,7 @@ class ModelInterface:
         """
         Check if model is loaded
         """
-        return self.model is not None and self.tokenizer is not None
+        return self.trainer is not None and self.tokenizer is not None
 
     def list_available_models(self):
         """

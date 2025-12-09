@@ -18,7 +18,7 @@ from api.dataset_interface import DatasetInterface
 from api.tokenizer_interface import TokenizerInterface
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 model_interface = ModelInterface()
 training_interface = TrainingInterface()
