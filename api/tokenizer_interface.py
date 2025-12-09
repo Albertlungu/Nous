@@ -44,7 +44,7 @@ class TokenizerInterface:
             "type": type(self.tokenizer).__name__
         }
 
-    def switch_tokenizers(self, tokenizer_name:str):
+    def switch_tokenizer(self, tokenizer_name:str):
         """
         Switch tokenizer
 
