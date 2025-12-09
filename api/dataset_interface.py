@@ -131,7 +131,7 @@ class DatasetInterface:
             "size_mb": round(os.path.getsize(output_path) / (1024 * 1024), 2)
         }
 
-    def make_new_dataset(self, hf_path:str, inst_label:str, output_label:str, path:str, ds_len=0, dataset_branch='train', streaming=True, input_label=None):
+    def create_dataset(self, hf_path:str, inst_label:str, output_label:str, path:str, ds_len=0, dataset_branch='train', streaming=True, input_label=None):
         """
         Create a new dataset, not preexisting, from HuggingFace
 
