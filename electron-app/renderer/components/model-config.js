@@ -94,7 +94,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Global function for model selection
     async function selectModel(modelPath) {
         try {
-            showModelInfo('Loading model...');
+            // Show persistent loading message
+            modelInfo.innerHTML = `
+                <div style="background: var(--bg-tertiary); border: 1px solid var(--border-primary); padding: 16px; border-radius: 8px; color: var(--text-primary);">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div class="message-loading" style="padding: 0;">
+                            <span></span><span></span><span></span>
+                        </div>
+                        <span>Loading model... This may take a moment.</span>
+                    </div>
+                </div>
+            `;
 
             const response = await fetch('http://127.0.0.1:5000/api/models/load', {
                 method: 'POST',
@@ -112,8 +122,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(data.error || 'Failed to load model');
             }
 
-            showModelInfo('Model loaded successfully!');
-            await updateModelInfo();
+            // Show success message briefly
+            modelInfo.innerHTML = `
+                <div style="background: var(--bg-tertiary); border: 1px solid var(--accent-primary); padding: 12px; border-radius: 8px; color: var(--accent-primary);">
+                    Model loaded successfully!
+                </div>
+            `;
+
+            // Wait a moment then show model info
+            setTimeout(async () => {
+                await updateModelInfo();
+            }, 1500);
 
         } catch (error) {
             console.error('Load model error:', error);
@@ -219,7 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showModelInfo(message) {
+    function showModelInfo(message, autoRemove = false) {
         const infoDiv = document.createElement('div');
         infoDiv.style.cssText = 'background: var(--bg-tertiary); border: 1px solid var(--border-primary); padding: 12px; border-radius: 8px; margin-bottom: 12px; color: var(--text-primary);';
         infoDiv.textContent = message;
@@ -227,7 +246,9 @@ document.addEventListener('DOMContentLoaded', () => {
         modelInfo.innerHTML = '';
         modelInfo.appendChild(infoDiv);
 
-        setTimeout(() => infoDiv.remove(), 3000);
+        if (autoRemove) {
+            setTimeout(() => infoDiv.remove(), 3000);
+        }
     }
 
     function showModelError(message) {
