@@ -35,6 +35,18 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleSend() {
         if (isGenerating) return;
 
+        try {
+            const healthCheck = await fetch('http:127.0.0.1:5000/api/health');
+            const health = await healthCheck.json();
+            if (!health.model_loaded) {
+                showError('Please load a model first from the Model Config page');
+                return;
+            }
+        } catch (e) {
+            showError('Cannot connect to server. Make sure Flask is running.');
+            return;
+        }
+
         const instruction = instructionInput.value.trim();
         const context = contextInput.value.trim();
 
@@ -79,10 +91,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
-                if (response.status === 400) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'No model loaded. Please load a model first.');
-                }
                 throw new Error(`Server error: ${response.status}`);
             }
 
