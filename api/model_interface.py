@@ -118,38 +118,38 @@ class ModelInterface:
             "vocab_size": self.tokenizer.vocab_size
         }
 
-    # def generate_stream(self, prompt:str, max_tokens=100, temperature=0.7, top_k=40):
-    #     """
-    #     Generate tokens one at a time (streaming).
+    def generate_stream(self, prompt:str, max_tokens=100, temperature=0.7, top_k=40):
+        """
+        Generate tokens one at a time (streaming).
 
-    #     Args:
-    #         prompt (str): User prompt to model
-    #         max_tokens (int, optional): Maximum output token length. Defaults to 100.
-    #         temperature (float, optional): Temperature value of model. Dictates how 'creative' it is. Defaults to 0.7.
-    #         top_k (int, optional): Tok K of the model, so it is able to look at its top k next token probabilities. Defaults to 40.
-    #     """
+        Args:
+            prompt (str): User prompt to model
+            max_tokens (int, optional): Maximum output token length. Defaults to 100.
+            temperature (float, optional): Temperature value of model. Dictates how 'creative' it is. Defaults to 0.7.
+            top_k (int, optional): Tok K of the model, so it is able to look at its top k next token probabilities. Defaults to 40.
+        """
 
-    #     if not self.is_loaded():
-    #         raise Exception("Model not loaded")
+        if not self.is_loaded():
+            raise Exception("Model not loaded")
 
-    #     with self.lock:
-    #         import io
-    #         from contextlib import redirect_stdout
+        with self.lock:
+            import io
+            from contextlib import redirect_stdout
 
-    #         output = io.StringIO()
-    #         with redirect_stdout(output):
-    #             _, token_ids = self.trainer.generate(
-    #                 prompt=prompt,
-    #                 max_length=max_tokens,
-    #                 temperature=temperature,
-    #                 top_k=top_k,
-    #                 repetition_penalty=1.2,
-    #                 debug=False
-    #             )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                _, token_ids = self.trainer.generate(
+                    prompt=prompt,
+                    max_length=max_tokens,
+                    temperature=temperature,
+                    top_k=top_k,
+                    repetition_penalty=1.2,
+                    debug=False
+                )
 
-    #         for token_id in token_ids:
-    #             token_text = self.tokenizer.decode([token_id])
-    #             yield token_text
+            for token_id in token_ids:
+                token_text = self.tokenizer.decode([token_id])
+                yield token_text
 
     def generate(self, prompt:str, max_tokens=100, temperature=0.7, top_k=40):
         """
