@@ -19,15 +19,28 @@
 
         <main>
             <nav id="sidebar">
-                <button class="nav-btn active" data-view="chat">Chat</button>
-                <button class="nav-btn" data-view="model">Model Config</button>
-                <button class="nav-btn" data-view="training">Training</button>
-                <button class="nav-btn" data-view="datasets">Datasets</button>
+                <button class="nav-btn active" data-view="chat">
+                    <span class="nav-icon">C</span>
+                    <span class="nav-label">Chat</span>
+                </button>
+                <button class="nav-btn" data-view="model">
+                    <span class="nav-icon">M</span>
+                    <span class="nav-label">Model Config</span>
+                </button>
+                <button class="nav-btn" data-view="training">
+                    <span class="nav-icon">T</span>
+                    <span class="nav-label">Training</span>
+                </button>
+                <button class="nav-btn" data-view="datasets">
+                    <span class="nav-icon">D</span>
+                    <span class="nav-label">Datasets</span>
+                </button>
             </nav>
 
             <div id="content">
                 <div id="chat-view" class="view active">
                     <div id="chat-container">
+                        <button id="gen-settings" title="Generation Settings">⚙</button>
                         <div id="messages"></div>
                     </div>
                     <div id="input-area">
@@ -38,7 +51,7 @@
                         </div>
                         <button id="stop-btn" style="display: none;">Stop</button>
                     </div>
-                    <div id="generation-controls">
+                    <div id="generation-panel">
                         <label>Max Tokens: <input type="number" id="max-tokens" value="100" min="1" max="2000"></label>
                         <label>Temperature: <input type="number" id="temperature" value="0.7" min="0" max="2" step="0.1"></label>
                         <label>Top-k: <input type="number" id="top-k" value="40" min="1" max="100"></label>
@@ -46,27 +59,134 @@
                 </div>
                 <div id="model-view" class="view">
                     <h2>Model Management</h2>
-                    <div id="model-list"></div>
-                    <button id="load-model-btn">Load Model</button>
-                    <button id="unload-model-btn">Unload Model</button>
+                    <div class="command-list">
+                        <div class="command-item" id="load-model-btn">
+                            <div class="command-left">
+                                <span class="command-icon">↓</span>
+                                <div class="command-text">
+                                    <div class="command-title">Load Model</div>
+                                    <div class="command-subtitle">Select and load a model checkpoint</div>
+                                </div>
+                            </div>
+                            <kbd class="command-shortcut">⌘L</kbd>
+                        </div>
+                        <div class="command-item" id="list-models-btn">
+                            <div class="command-left">
+                                <span class="command-icon">≡</span>
+                                <div class="command-text">
+                                    <div class="command-title">List Models</div>
+                                    <div class="command-subtitle">View all available model checkpoints</div>
+                                </div>
+                            </div>
+                            <kbd class="command-shortcut">⌘M</kbd>
+                        </div>
+                        <div class="command-item danger" id="unload-model-btn">
+                            <div class="command-left">
+                                <span class="command-icon">×</span>
+                                <div class="command-text">
+                                    <div class="command-title">Unload Model</div>
+                                    <div class="command-subtitle">Remove current model from memory</div>
+                                </div>
+                            </div>
+                            <kbd class="command-shortcut">⌘U</kbd>
+                        </div>
+                    </div>
                     <div id="model-info"></div>
                 </div>
 
                 <div id="training-view" class="view">
                     <h2>Training</h2>
                     <div id="training-status"></div>
-                    <button id="start-training-btn">Start Training</button>
-                    <button id="stop-training-btn">Stop Training</button>
-                    <button id="pause-training-btn">Pause Training</button>
-                    <button id="resume-training-btn">Resume Training</button>
+                    <div class="command-list">
+                        <div class="command-item" id="start-training-btn">
+                            <div class="command-left">
+                                <span class="command-icon">▶</span>
+                                <div class="command-text">
+                                    <div class="command-title">Start Training</div>
+                                    <div class="command-subtitle">Begin training with current configuration</div>
+                                </div>
+                            </div>
+                            <kbd class="command-shortcut">⌘S</kbd>
+                        </div>
+                        <div class="command-item" id="pause-training-btn">
+                            <div class="command-left">
+                                <span class="command-icon">‖</span>
+                                <div class="command-text">
+                                    <div class="command-title">Pause Training</div>
+                                    <div class="command-subtitle">Temporarily pause the training process</div>
+                                </div>
+                            </div>
+                            <kbd class="command-shortcut">⌘P</kbd>
+                        </div>
+                        <div class="command-item" id="resume-training-btn">
+                            <div class="command-left">
+                                <span class="command-icon">↻</span>
+                                <div class="command-text">
+                                    <div class="command-title">Resume Training</div>
+                                    <div class="command-subtitle">Continue paused training session</div>
+                                </div>
+                            </div>
+                            <kbd class="command-shortcut">⌘R</kbd>
+                        </div>
+                        <div class="command-item danger" id="stop-training-btn">
+                            <div class="command-left">
+                                <span class="command-icon">■</span>
+                                <div class="command-text">
+                                    <div class="command-title">Stop Training</div>
+                                    <div class="command-subtitle">End training and save checkpoint</div>
+                                </div>
+                            </div>
+                            <kbd class="command-shortcut">⌘X</kbd>
+                        </div>
+                    </div>
                     <div id="training-history"></div>
                 </div>
 
                 <div id="datasets-view" class="view">
                     <h2>Datasets</h2>
+                    <div class="command-list">
+                        <div class="command-item" id="create-dataset-btn">
+                            <div class="command-left">
+                                <span class="command-icon">+</span>
+                                <div class="command-text">
+                                    <div class="command-title">Create Dataset</div>
+                                    <div class="command-subtitle">Create a new dataset from HuggingFace</div>
+                                </div>
+                            </div>
+                            <kbd class="command-shortcut">⌘N</kbd>
+                        </div>
+                        <div class="command-item" id="list-datasets-btn">
+                            <div class="command-left">
+                                <span class="command-icon">≡</span>
+                                <div class="command-text">
+                                    <div class="command-title">List Datasets</div>
+                                    <div class="command-subtitle">View all available datasets</div>
+                                </div>
+                            </div>
+                            <kbd class="command-shortcut">⌘D</kbd>
+                        </div>
+                        <div class="command-item" id="combine-datasets-btn">
+                            <div class="command-left">
+                                <span class="command-icon">⊕</span>
+                                <div class="command-text">
+                                    <div class="command-title">Combine Datasets</div>
+                                    <div class="command-subtitle">Merge multiple datasets together</div>
+                                </div>
+                            </div>
+                            <kbd class="command-shortcut">⌘C</kbd>
+                        </div>
+                        <div class="command-item danger" id="remove-dataset-btn">
+                            <div class="command-left">
+                                <span class="command-icon">−</span>
+                                <div class="command-text">
+                                    <div class="command-title">Remove Dataset</div>
+                                    <div class="command-subtitle">Delete a dataset from storage</div>
+                                </div>
+                            </div>
+                            <kbd class="command-shortcut">⌘⌫</kbd>
+                        </div>
+                    </div>
                     <div id="dataset-list"></div>
-                    <button id="add-dataset-btn">Add Dataset</button>
-                    <button id="remove-dataset-btn">Remove Dataset</button>
                     <div id="dataset-info"></div>
                 </div>
             </div>
