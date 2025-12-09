@@ -16,6 +16,7 @@ from api.model_interface import ModelInterface
 from api.training_interface import TrainingInterface
 from api.dataset_interface import DatasetInterface
 from api.tokenizer_interface import TokenizerInterface
+from src.tokenizer.tokenizer_class import BPETokenizer
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -49,7 +50,7 @@ def list_models():
     models = model_interface.list_available_models()
     return jsonify({"models": models})
 
-@app.route('/api/models/load', methods=["GET"])
+@app.route('/api/models/load', methods=["POST"])
 def load_model():
     """
     Load a model checkpoint

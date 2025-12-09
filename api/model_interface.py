@@ -54,18 +54,24 @@ class ModelInterface:
             print(f"Loading model from {model_path}...")
 
             with open(model_path, "rb") as f:
-                checkpoint = pickle.load(f)
+                self.checkpoint = pickle.load(f)
 
             config = self.checkpoint.get('config', {})
 
-            tokenizer_path = "artifacts/tokenizer/tokenizer_alpaca.pkl"
-            if os.path.exists(tokenizer_path):
-                with open(tokenizer_path, "rb") as f:
-                    self.tokenizer = pickle.load(f)
-                    if hasattr(self.tokenizer, '_ensure_vocab'):
-                        self.tokenizer._ensure_vocab
-            else:
+
+            tokenizer_type = config.get('tokenizer', 'tiktoken')
+
+            if tokenizer_type == 'tiktoken':
                 self.tokenizer = TikToken()
+            else:
+                tokenizer_path = "artifacts/tokenizer/tokenizer_alpaca.pkl"
+                if os.path.exists(tokenizer_path):
+                    with open(tokenizer_path, "rb") as f:
+                        self.tokenizer = pickle.load(f)
+                        if hasattr(self.tokenizer, '_ensure_vocab'):
+                            self.tokenizer._ensure_vocab
+                else:
+                    self.tokenizer = TikToken()
 
             self.trainer = Trainer(
                 tokenizer=self.tokenizer,

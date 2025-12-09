@@ -30,6 +30,12 @@ class TrainingInterface:
         self.lr_history = []
         self.recent_logs = deque(maxlen=100)
 
+    def is_active(self):
+        """
+        Check if training is currently active
+        """
+        return self.is_training
+
     def start_training(self, config):
         """
         Start training.
