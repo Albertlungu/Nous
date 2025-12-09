@@ -31,8 +31,11 @@
                         <div id="messages"></div>
                     </div>
                     <div id="input-area">
-                        <textarea id="prompt-input" placeholder="What shall we ruminate today?"></textarea>
-                        <button id="send-btn">Send</button>
+                        <textarea id="instruction-input" placeholder="What shall we ruminate today?"></textarea>
+                        <div id="context-row">
+                            <textarea id="context-input" placeholder="Input here the input the model uses to answer your prompt, or leave blank."></textarea>
+                            <button id="send-btn" aria-label="Send"></button>
+                        </div>
                         <button id="stop-btn" style="display: none;">Stop</button>
                     </div>
                     <div id="generation-controls">
