@@ -167,7 +167,7 @@ class TrainingInterface:
                 self.is_paused = False
 
         self.training_thread = threading.Thread(target=training_loop, daemon=True)
-        self.trianing_thread.start()
+        self.training_thread.start()
 
     def stop_training(self):
         """
