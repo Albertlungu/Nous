@@ -116,14 +116,12 @@
 
                         <div id="bpe-options" class="tokenizer-options" style="display: none;">
                             <div class="bpe-choice">
-                                <label class="radio-label">
-                                    <input type="radio" name="bpe-choice" value="existing" checked>
-                                    <span>Use Existing BPE</span>
+                                <span class="toggle-label">Use Existing</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="bpe-choice-toggle">
+                                    <span class="toggle-slider"></span>
                                 </label>
-                                <label class="radio-label">
-                                    <input type="radio" name="bpe-choice" value="new">
-                                    <span>Create New BPE</span>
-                                </label>
+                                <span class="toggle-label">Train New</span>
                             </div>
 
                             <div id="bpe-existing" class="bpe-method">
@@ -171,6 +169,12 @@
                         <div class="config-actions">
                             <button class="config-btn" id="save-config-btn">Save Config</button>
                             <button class="config-btn secondary" id="reset-config-btn">Reset</button>
+                            <button class="config-btn secondary" id="calc-params-btn">Calculate Parameters</button>
+                        </div>
+
+                        <div id="param-display" style="display: none; margin-top: 16px; padding: 16px; background: var(--bg-tertiary); border: 1px solid var(--accent-primary); border-radius: 8px;">
+                            <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 4px;">Total Parameters:</div>
+                            <div id="param-count" style="font-size: 24px; font-weight: 600; color: var(--accent-primary);"></div>
                         </div>
                     </div>
 

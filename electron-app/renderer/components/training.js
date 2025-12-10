@@ -7,14 +7,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const stopTrainingBtn = document.getElementById('stop-training-btn');
     const saveConfigBtn = document.getElementById('save-config-btn');
     const resetConfigBtn = document.getElementById('reset-config-btn');
+    const calcParamsBtn = document.getElementById('calc-params-btn');
     const trainingStatus = document.getElementById('training-status');
 
     // Tokenizer elements
     const tokenizerToggle = document.getElementById('tokenizer-toggle');
-    const toggleLabels = document.querySelectorAll('.toggle-label');
+    const tokenizerTypeToggleLabels = document.querySelectorAll('#tokenizer-panel > .tokenizer-type-select > .toggle-label');
     const tiktokenOptions = document.getElementById('tiktoken-options');
     const bpeOptions = document.getElementById('bpe-options');
-    const bpeChoiceRadios = document.querySelectorAll('input[name="bpe-choice"]');
+    const bpeChoiceToggle = document.getElementById('bpe-choice-toggle');
+    const bpeChoiceLabels = document.querySelectorAll('#bpe-options .bpe-choice > .toggle-label');
     const bpeExisting = document.getElementById('bpe-existing');
     const bpeNew = document.getElementById('bpe-new');
     const setTiktokenBtn = document.getElementById('set-tiktoken-btn');
@@ -30,6 +32,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load datasets for BPE training
     loadDatasets();
+
+    // Auto-select all text on focus for input fields
+    const allInputs = document.querySelectorAll('#training-view input[type="number"], #training-view input[type="text"]');
+    allInputs.forEach(input => {
+        input.addEventListener('focus', function() {
+            this.select();
+        });
+    });
 
     if (startTrainingBtn) {
         startTrainingBtn.addEventListener('click', async () => {
@@ -67,6 +77,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (calcParamsBtn) {
+        calcParamsBtn.addEventListener('click', () => {
+            calculateParameters();
+        });
+    }
+
     // Tokenizer type toggle
     if (tokenizerToggle) {
         tokenizerToggle.addEventListener('change', (e) => {
@@ -74,33 +90,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 // BPE selected
                 tiktokenOptions.style.display = 'none';
                 bpeOptions.style.display = 'flex';
-                toggleLabels[0].classList.remove('active');
-                toggleLabels[1].classList.add('active');
+                tokenizerTypeToggleLabels[0].classList.remove('active');
+                tokenizerTypeToggleLabels[1].classList.add('active');
             } else {
                 // TikToken selected
                 tiktokenOptions.style.display = 'flex';
                 bpeOptions.style.display = 'none';
-                toggleLabels[0].classList.add('active');
-                toggleLabels[1].classList.remove('active');
+                tokenizerTypeToggleLabels[0].classList.add('active');
+                tokenizerTypeToggleLabels[1].classList.remove('active');
             }
         });
 
         // Set initial state
-        toggleLabels[0].classList.add('active');
+        tokenizerTypeToggleLabels[0].classList.add('active');
     }
 
     // BPE choice toggle
-    bpeChoiceRadios.forEach(radio => {
-        radio.addEventListener('change', (e) => {
-            if (e.target.value === 'existing') {
-                bpeExisting.style.display = 'flex';
-                bpeNew.style.display = 'none';
-            } else {
+    if (bpeChoiceToggle) {
+        bpeChoiceToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                // Train New selected
                 bpeExisting.style.display = 'none';
                 bpeNew.style.display = 'flex';
+                bpeChoiceLabels[0].classList.remove('active');
+                bpeChoiceLabels[1].classList.add('active');
+            } else {
+                // Use Existing selected
+                bpeExisting.style.display = 'flex';
+                bpeNew.style.display = 'none';
+                bpeChoiceLabels[0].classList.add('active');
+                bpeChoiceLabels[1].classList.remove('active');
             }
         });
-    });
+
+        // Set initial state
+        bpeChoiceLabels[0].classList.add('active');
+    }
 
     // Set TikToken button
     if (setTiktokenBtn) {
@@ -510,5 +535,65 @@ document.addEventListener('DOMContentLoaded', () => {
         tokenizerStatus.appendChild(errorDiv);
 
         setTimeout(() => errorDiv.remove(), 5000);
+    }
+
+    function calculateParameters() {
+        // Get model configuration values
+        const numBlocks = parseInt(document.getElementById('num-blocks')?.value || 8);
+        const numHeads = parseInt(document.getElementById('num-heads')?.value || 8);
+        const embeddingDim = parseInt(document.getElementById('embedding-dim')?.value || 512);
+        const vocabSize = parseInt(document.getElementById('vocab-size')?.value || 50257);
+        const maxSeqLen = parseInt(document.getElementById('max-seq-len')?.value || 256);
+
+        // Calculate parameters for a transformer model
+        // Token embedding: vocab_size * embedding_dim
+        const tokenEmbedding = vocabSize * embeddingDim;
+
+        // Position embedding: max_seq_len * embedding_dim
+        const positionEmbedding = maxSeqLen * embeddingDim;
+
+        // Per transformer block:
+        // - Multi-head attention: 4 * embedding_dim^2 (Q, K, V, O projections)
+        // - Feed-forward: 2 * embedding_dim * (4 * embedding_dim) = 8 * embedding_dim^2
+        // - Layer norms: 4 * embedding_dim (2 layer norms per block, each has 2 params per dim)
+        const attentionParams = 4 * embeddingDim * embeddingDim;
+        const ffnParams = 8 * embeddingDim * embeddingDim;
+        const layerNormParams = 4 * embeddingDim;
+        const paramsPerBlock = attentionParams + ffnParams + layerNormParams;
+        const totalBlockParams = numBlocks * paramsPerBlock;
+
+        // Final layer norm: 2 * embedding_dim
+        const finalLayerNorm = 2 * embeddingDim;
+
+        // Output projection (LM head): embedding_dim * vocab_size
+        const outputProjection = embeddingDim * vocabSize;
+
+        // Total parameters
+        const totalParams = tokenEmbedding + positionEmbedding + totalBlockParams + finalLayerNorm + outputProjection;
+
+        // Format the number with commas
+        const formattedParams = totalParams.toLocaleString();
+        const paramsInMillions = (totalParams / 1_000_000).toFixed(2);
+        const paramsInBillions = (totalParams / 1_000_000_000).toFixed(2);
+        const paramsInTrillions = (totalParams / 1_000_000_000_000).toFixed(2);
+
+        // Display the result
+        const paramDisplay = document.getElementById('param-display');
+        const paramCount = document.getElementById('param-count');
+
+        if (paramsInMillions >= 1000) {
+            paramCount.innerHTML = `${formattedParams}<br><span style="font-size: 16px; color: var(--text-secondary);">(${paramsInBillions}B parameters)</span>`;
+        } else if (paramsInBillions >= 1000) {
+            paramCount.innerHTML = `${formattedParams}<br><span style="font-size: 16px; color: var(--text-secondary);">(${paramsInTrillions}M parameters)</span>`;
+        } else {
+            paramCount.innerHTML = `${formattedParams}<br><span style="font-size: 16px; color: var(--text-secondary);">(${paramsInMillions}M parameters)</span>`;
+        }
+
+        paramDisplay.style.display = 'block';
+
+        // Auto-hide after 10 seconds
+        setTimeout(() => {
+            paramDisplay.style.display = 'none';
+        }, 10000);
     }
 });

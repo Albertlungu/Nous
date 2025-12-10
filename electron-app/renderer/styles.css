@@ -785,6 +785,19 @@ h2 {
     font-size: 13px;
     width: 100px;
     transition: border-color 0.2s ease;
+    -moz-appearance: textfield;
+}
+
+/* Remove number input arrows in Chrome, Safari, Edge */
+.config-grid input[type="number"]::-webkit-inner-spin-button,
+.config-grid input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Remove number input arrows in Firefox */
+.config-grid input[type="number"] {
+    -moz-appearance: textfield;
 }
 
 .config-grid input:focus {
@@ -944,6 +957,30 @@ h2 {
     color: var(--text-primary);
     font-size: 13px;
     transition: border-color 0.2s ease;
+    -moz-appearance: textfield;
+}
+
+/* Remove number input arrows */
+.tokenizer-options input[type="number"]::-webkit-inner-spin-button,
+.tokenizer-options input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.tokenizer-options input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+/* Style select dropdowns */
+.tokenizer-options select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8"><path fill="%23b3b3b3" d="M6 8L0 0h12z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+    cursor: pointer;
 }
 
 .tokenizer-options input[type="text"]:focus,
@@ -961,8 +998,12 @@ h2 {
 
 .bpe-choice {
     display: flex;
+    align-items: center;
+    justify-content: center;
     gap: 16px;
     margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-primary);
 }
 
 .bpe-method {
