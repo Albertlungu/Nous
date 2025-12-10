@@ -36,6 +36,14 @@ class TrainingInterface:
         """
         return self.is_training
 
+    def reset_state(self):
+        """
+        Force reset training state (use when training is stuck)
+        """
+        self.is_training = False
+        self.is_paused = False
+        self.stop_requested = False
+
     def start_training(self, config):
         """
         Start training.
@@ -84,14 +92,20 @@ class TrainingInterface:
                     with open(token_ids_path, "rb") as f:
                         token_ids = pickle.load(f)
                 elif dataset_path and os.path.exists(dataset_path):
-                    with open(dataset_path, 'r', encoding='utf-8')  as f:
-                        content = f.read()
-                        training_texts = [doc.strip() for doc in content.split('\n\n') if doc.strip()]
-                        token_ids = []
-                        for text in training_texts:
-                            ids = tokenizer.encode(text)
-                            ids.append(tokenizer.eos_token_id)
-                            token_ids.append(ids)
+                    # Check if dataset is .pkl (pre-tokenized) or .txt (needs tokenization)
+                    if dataset_path.endswith('.pkl'):
+                        with open(dataset_path, 'rb') as f:
+                            token_ids = pickle.load(f)
+                    else:
+                        # .txt file - needs tokenization
+                        with open(dataset_path, 'r', encoding='utf-8')  as f:
+                            content = f.read()
+                            training_texts = [doc.strip() for doc in content.split('\n\n') if doc.strip()]
+                            token_ids = []
+                            for text in training_texts:
+                                ids = tokenizer.encode(text)
+                                ids.append(tokenizer.eos_token_id)
+                                token_ids.append(ids)
                 else:
                     raise Exception("No valid dataset given")
 

@@ -156,6 +156,15 @@
                             <label>Vocab Size: <input type="number" id="vocab-size" value="50257" readonly></label>
                         </div>
 
+                        <h3>Dataset Selection</h3>
+                        <div class="config-grid">
+                            <label style="grid-column: 1 / -1;">Dataset:
+                                <select id="training-dataset-select" style="width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border-primary); border-radius: 8px; padding: 10px; color: var(--text-primary);">
+                                    <option value="">Select a dataset...</option>
+                                </select>
+                            </label>
+                        </div>
+
                         <h3>Training Parameters</h3>
                         <div class="config-grid">
                             <label>Epochs: <input type="number" id="num-epochs" value="75" min="1" max="1000"></label>
@@ -177,8 +186,6 @@
                             <div id="param-count" style="font-size: 24px; font-weight: 600; color: var(--accent-primary);"></div>
                         </div>
                     </div>
-
-                    <div id="training-status"></div>
 
                     <div class="command-list">
                         <div class="command-item" id="start-training-btn">
@@ -232,6 +239,8 @@
                             <kbd class="command-shortcut">⌘E</kbd>
                         </div>
                     </div>
+
+                    <div id="training-status"></div>
                 </div>
 
                 <div id="datasets-view" class="view">

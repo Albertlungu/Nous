@@ -132,6 +132,10 @@ def start_training():
     config = data.get('config', {})
 
     try:
+        # If training is stuck (flag is True but no thread is running), reset it
+        if training_interface.is_training and (not training_interface.training_thread or not training_interface.training_thread.is_alive()):
+            training_interface.reset_state()
+
         training_interface.start_training(config)
         return jsonify({"success": True, "message": "Training started"})
     except Exception as e:
@@ -176,60 +180,6 @@ def training_history():
     """
     history = training_interface.get_history()
     return jsonify(history)
-
-#----------------------------------- Datasets ------------------------------------
-@app.route('/api/datasets/list', methods=['GET'])
-def list_datasets():
-    """
-    List available datasets
-    """
-    datasets = dataset_interface.list_datasets()
-    return jsonify({"datasets": datasets})
-
-@app.route('/api/datasets/info/<dataset_name>', methods=['GET'])
-def get_dataset_info(dataset_name:str):
-    """
-    Get information about a specific dataset.
-
-    Args:
-        dataset_name (str): Name of the target dataset.
-    """
-    info = dataset_interface.get_dataset_info(dataset_name)
-    if info:
-        return jsonify(info)
-    return jsonify({"error": "Dataset not found"}), 404
-
-@app.route('/api/datasets/combine', methods=['POST'])
-def combine_datasets():
-    """
-    Combine multiple datasets
-    """
-    data = request.json
-    dataset_names = data.get('datasets', [])
-    output_name = data.get('output_name', 'combined')
-
-    try:
-        result = dataset_interface.combine_datasets(dataset_names, output_name)
-        return jsonify({"success": True, "result": result})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route('/api/datasets/create', methods=['POST'])
-def create_dataset(hf_path:str, inst_label:str, output_label:str, path:str, ds_len=0, dataset_branch='train', streaming=True, input_label=None):
-    """
-    Create dataset.
-
-    Args:
-        hf_path (str): HuggingFace dataset library. e.g., tatsu-lab/alpaca
-            inst_label (str): Label that shows the instruction given to the model.
-            output_label (str): Label that shows the output from the dataset.
-            path (str): Output path of dataset.
-            ds_len (int, optional): Dataset length, in examples. Defaults to 0 (all examples).
-            dataset_branch (str, optional): Branch of the dataset (e.g., 'train'). Defaults to 'train'.
-            streaming (bool, optional): Don't load the whole dataset into memory for large datasets. Defaults to true.
-            input_label (str, optional): Label that shows the input given to the model. Defaults to None.
-    """
-    dataset_interface.create_dataset(hf_path, inst_label, output_label, path, ds_len, dataset_branch, streaming, input_label)
 
 #----------------------------------- Tokenizer ------------------------------------
 @app.route('/api/tokenizers/list', methods=['GET'])
@@ -318,7 +268,7 @@ def bpe_progress():
 #----------------------------------- Dataset Management ------------------------------------
 
 @app.route('/api/datasets/list', methods=['GET'])
-def list_datasets():
+def list_datasets_v2():
     """List all available datasets"""
     try:
         datasets = []
@@ -328,22 +278,37 @@ def list_datasets():
             return jsonify({'datasets': []})
 
         for filename in os.listdir(training_data_dir):
-            if filename.endswith('.txt'):
+            if filename.endswith('.txt') or filename.endswith('.pkl'):
                 filepath = os.path.join(training_data_dir, filename)
-
-                # Count examples (separated by double newlines)
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    examples = len([ex for ex in content.split('\n\n') if ex.strip()])
 
                 # Get file size
                 size_bytes = os.path.getsize(filepath)
                 size_mb = f"{size_bytes / (1024 * 1024):.1f}MB"
 
+                # Count examples
+                examples = 0
+                if filename.endswith('.txt'):
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                            examples = len([ex for ex in content.split('\n\n') if ex.strip()])
+                    except:
+                        examples = 0
+                elif filename.endswith('.pkl'):
+                    try:
+                        with open(filepath, 'rb') as f:
+                            data = pickle.load(f)
+                            if isinstance(data, list):
+                                examples = len(data)
+                            else:
+                                examples = 0
+                    except:
+                        examples = 0
+
                 datasets.append({
                     'name': filename,
                     'path': filepath,
-                    'examples': examples,
+                    'examples': examples if examples > 0 else 'Unknown',
                     'size': size_mb
                 })
 
@@ -354,7 +319,7 @@ def list_datasets():
 
 
 @app.route('/api/datasets/create', methods=['POST'])
-def create_dataset():
+def create_dataset_v2():
     """Create a new dataset from preset/HuggingFace/local files"""
     try:
         from datasets import load_dataset
@@ -441,8 +406,47 @@ def create_dataset():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/datasets/import-files', methods=['POST'])
+def import_files():
+    """Import .txt or .pkl files directly to training_data/"""
+    try:
+        if 'files' not in request.files:
+            return jsonify({'error': 'No files provided'}), 400
+
+        files = request.files.getlist('files')
+
+        if not files:
+            return jsonify({'error': 'No files provided'}), 400
+
+        training_data_dir = 'training_data'
+        os.makedirs(training_data_dir, exist_ok=True)
+
+        imported_files = []
+        for file in files:
+            if not file.filename:
+                continue
+
+            # Only accept .txt and .pkl files
+            if not (file.filename.endswith('.txt') or file.filename.endswith('.pkl')):
+                return jsonify({'error': f'Invalid file type: {file.filename}. Only .txt and .pkl files are allowed.'}), 400
+
+            # Save file to training_data/
+            output_path = os.path.join(training_data_dir, file.filename)
+            file.save(output_path)
+            imported_files.append(output_path)
+
+        return jsonify({
+            'success': True,
+            'imported_files': imported_files,
+            'count': len(imported_files)
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/datasets/combine', methods=['POST'])
-def combine_datasets():
+def combine_datasets_v2():
     """Combine multiple datasets into one"""
     try:
         data = request.json
@@ -548,11 +552,25 @@ def preview_dataset():
         if not dataset_path:
             return jsonify({'error': 'Dataset path is required'}), 400
 
-        with open(dataset_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        # Check if dataset is .pkl (tokenized) or .txt (raw text)
+        if dataset_path.endswith('.pkl'):
+            with open(dataset_path, 'rb') as f:
+                token_ids = pickle.load(f)
 
-        examples = [ex.strip() for ex in content.split('\n\n') if ex.strip()]
-        preview_examples = examples[:num_examples]
+            # For .pkl files, show token ID arrays
+            preview_examples = []
+            for i, ids in enumerate(token_ids[:num_examples]):
+                if isinstance(ids, list):
+                    preview_examples.append(f"Token IDs (length {len(ids)}): {ids[:50]}{'...' if len(ids) > 50 else ''}")
+                else:
+                    preview_examples.append(f"Token IDs: {str(ids)[:200]}")
+        else:
+            # .txt file - show raw text
+            with open(dataset_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            examples = [ex.strip() for ex in content.split('\n\n') if ex.strip()]
+            preview_examples = examples[:num_examples]
 
         return jsonify({'examples': preview_examples})
 

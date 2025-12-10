@@ -199,9 +199,15 @@ document.addEventListener('DOMContentLoaded', () => {
     async function updateModelInfo() {
         try {
             const response = await fetch('http://127.0.0.1:5000/api/models/info');
+
+            if (!response.ok) {
+                modelInfo.innerHTML = '<p style="color: var(--text-tertiary);">No model loaded</p>';
+                return;
+            }
+
             const data = await response.json();
 
-            if (response.status === 400 || !data || data.error) {
+            if (!data || data.error) {
                 modelInfo.innerHTML = '<p style="color: var(--text-tertiary);">No model loaded</p>';
                 return;
             }

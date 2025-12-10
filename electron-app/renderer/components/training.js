@@ -25,13 +25,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const trainBpeBtn = document.getElementById('train-bpe-btn');
     const bpeDatasetSelect = document.getElementById('bpe-dataset-select');
     const tokenizerStatus = document.getElementById('tokenizer-status');
+    const trainingDatasetSelect = document.getElementById('training-dataset-select');
 
     let statusInterval = null;
 
     // Load saved config on page load
     loadConfig();
 
-    // Load datasets for BPE training
+    // Load datasets for BPE training and training dataset selection
     loadDatasets();
 
     // Auto-select all text on focus for input fields
@@ -245,19 +246,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getConfigFromForm() {
+        const datasetPath = trainingDatasetSelect?.value || '';
+
         return {
+            dataset_path: datasetPath,
             num_blocks: parseInt(document.getElementById('num-blocks')?.value || 8),
             num_heads: parseInt(document.getElementById('num-heads')?.value || 8),
             embedding_dim: parseInt(document.getElementById('embedding-dim')?.value || 512),
-            max_seq_len: parseInt(document.getElementById('max-seq-len')?.value || 256),
+            max_seq_length: parseInt(document.getElementById('max-seq-len')?.value || 256),
             dropout: parseFloat(document.getElementById('dropout')?.value || 0.0),
             vocab_size: parseInt(document.getElementById('vocab-size')?.value || 50257),
-            num_epochs: parseInt(document.getElementById('num-epochs')?.value || 75),
+            epochs: parseInt(document.getElementById('num-epochs')?.value || 75),
             batch_size: parseInt(document.getElementById('batch-size')?.value || 64),
-            learning_rate: parseFloat(document.getElementById('learning-rate')?.value || 0.0011),
+            lr: parseFloat(document.getElementById('learning-rate')?.value || 0.0011),
             min_lr: parseFloat(document.getElementById('min-lr')?.value || 0.000005),
             warmup_steps: parseInt(document.getElementById('warmup-steps')?.value || 500),
-            save_every: parseInt(document.getElementById('save-every')?.value || 1)
+            save_every: parseInt(document.getElementById('save-every')?.value || 1),
+            tokenizer: 'tiktoken',
+            use_lr_schedule: true,
+            save_checkpoints: true
         };
     }
 
@@ -352,6 +359,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const epochProgress = status.current_epoch && status.total_epochs
             ? (status.current_epoch / status.total_epochs * 100).toFixed(1)
             : 0;
+        const batchProgress = status.current_batch && status.total_batches
+            ? (status.current_batch / status.total_batches * 100).toFixed(1)
+            : 0;
 
         const html = `
             <div class="info-card">
@@ -359,11 +369,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="info-card-value" style="color: ${status.is_paused ? 'var(--text-secondary)' : 'var(--accent-primary)'};">${state}</div>
             </div>
             <div class="info-card">
-                <div class="info-card-label">Progress</div>
+                <div class="info-card-label">Epoch Progress</div>
                 <div class="info-card-value">
                     Epoch ${status.current_epoch || 0} / ${status.total_epochs || 0}
-                    <div style="width: 100%; height: 4px; background: var(--bg-tertiary); border-radius: 2px; margin-top: 8px;">
-                        <div style="width: ${epochProgress}%; height: 100%; background: var(--accent-primary); border-radius: 2px; transition: width 0.3s;"></div>
+                    <div style="width: 100%; height: 6px; background: var(--bg-tertiary); border-radius: 3px; margin-top: 8px;">
+                        <div style="width: ${epochProgress}%; height: 100%; background: var(--accent-primary); border-radius: 3px; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="info-card">
+                <div class="info-card-label">Batch Progress</div>
+                <div class="info-card-value">
+                    Batch ${status.current_batch || 0} / ${status.total_batches || 0}
+                    <div style="width: 100%; height: 6px; background: var(--bg-tertiary); border-radius: 3px; margin-top: 8px;">
+                        <div style="width: ${batchProgress}%; height: 100%; background: #3b82f6; border-radius: 3px; transition: width 0.3s;"></div>
                     </div>
                 </div>
             </div>
@@ -373,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="info-card">
                 <div class="info-card-label">Learning Rate</div>
-                <div class="info-card-value">${status.learning_rate?.toFixed(6) || 'N/A'}</div>
+                <div class="info-card-value">${status.current_lr?.toFixed(8) || 'N/A'}</div>
             </div>
         `;
 
@@ -417,10 +436,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (data.datasets && data.datasets.length > 0) {
                 data.datasets.forEach(dataset => {
-                    const option = document.createElement('option');
-                    option.value = dataset.path;
-                    option.textContent = `${dataset.name} (${dataset.examples} examples)`;
-                    bpeDatasetSelect.appendChild(option);
+                    // Add to BPE dataset select (with example count)
+                    const bpeOption = document.createElement('option');
+                    bpeOption.value = dataset.path;
+                    bpeOption.textContent = `${dataset.name} (${dataset.examples} examples)`;
+                    bpeDatasetSelect.appendChild(bpeOption);
+
+                    // Add to training dataset select (without example count)
+                    const trainingOption = document.createElement('option');
+                    trainingOption.value = dataset.path;
+                    trainingOption.textContent = dataset.name;
+                    trainingDatasetSelect.appendChild(trainingOption);
                 });
             }
         } catch (error) {

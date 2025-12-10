@@ -1,8 +1,5 @@
 // Data Loader - handles dataset creation, combination, tokenization and file uploads
 
-const { error } = require("three");
-const { select } = require("three/tsl");
-
 document.addEventListener('DOMContentLoaded', () => {
     const createDatasetBtn = document.getElementById('create-dataset-btn');
     const listDatasetsBtn = document.getElementById('list-datasets-btn');
@@ -11,16 +8,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const datasetList = document.getElementById('dataset-list');
     const datasetInfo = document.getElementById('dataset-info');
 
-    async function loadAndDisplayDatasets(params) {
+    // Event listeners
+    if (createDatasetBtn) {
+        createDatasetBtn.addEventListener('click', () => {
+            showCreateDatasetModal();
+        });
+    }
+
+    if (listDatasetsBtn) {
+        listDatasetsBtn.addEventListener('click', () => {
+            loadAndDisplayDatasets();
+        });
+    }
+
+    if (combineDatasetBtn) {
+        combineDatasetBtn.addEventListener('click', () => {
+            showCombineDatasetsModal();
+        });
+    }
+
+    if (removeDatasetBtn) {
+        removeDatasetBtn.addEventListener('click', () => {
+            showRemoveDatasetModal();
+        });
+    }
+
+    // Load datasets on page load
+    loadAndDisplayDatasets();
+
+    async function loadAndDisplayDatasets() {
         try {
-            const response = await fetch('https://127.0.0.1:5000/api/datasets/lis');
+            const response = await fetch('http://127.0.0.1:5000/api/datasets/list');
 
             if (!response.ok) {
                 throw new Error('Failed to load datasets');
             }
 
             const data = await response.json();
-            loadAndDisplayDatasets(data.datasets || []);
+            displayDatasets(data.datasets || []);
         } catch (e) {
             console.error('Load dataset error:', e);
             showError(`Failed to load datasets: ${e.message}`);
@@ -40,8 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="list-item-meta">${dataset.examples} examples • ${dataset.size || 'Unknown size'}</div>
                 </div>
                 <div style="display: flex; gap: 8px;">
-                    <button class="mini-btn preview-btn" data-path="${dataset.path}" title="Preview">👁</button>
-                    <button class="mini-btn tokenize-btn" data-path="${dataset.path}" title="Tokenize">⚡</button>
+                    <button class="mini-btn preview-btn" data-path="${dataset.path}">Preview</button>
+                    <button class="mini-btn tokenize-btn" data-path="${dataset.path}">Tokenize</button>
                 </div>
             </div>
         `).join('');
@@ -52,6 +77,13 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 previewDataset(btn.dataset.path);
+            });
+        });
+
+        document.querySelectorAll('.tokenize-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                showTokenizeModal(btn.dataset.path);
             });
         });
     }
@@ -125,15 +157,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div id="file-source" class="source-panel">
                             <div style="border: 2px dashed var(--border-primary); border-radius: 8px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s;" id="file-drop-zone">
                                 <div style="font-size: 48px; margin-bottom: 12px;">📁</div>
-                                <div style="color: var(--text-primary); margin-bottom: 8px;">Drop .txt files here or click to browse</div>
-                                <div style="color: var(--text-tertiary); font-size: 12px;">Multiple files supported</div>
-                                <input type="file" id="file-input" accept=".txt" multiple style="display: none;">
+                                <div style="color: var(--text-primary); margin-bottom: 8px;">Drop .txt or .pkl files here or click to browse</div>
+                                <div style="color: var(--text-tertiary); font-size: 12px;">Files will be imported as-is to training_data/</div>
+                                <input type="file" id="file-input" accept=".txt,.pkl" multiple style="display: none;">
                             </div>
                             <div id="selected-files" style="margin-top: 12px;"></div>
                         </div>
                     </div>
 
-                    <div class="form-section">
+                    <div class="form-section" id="format-section">
                         <h4>Format Template</h4>
                         <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                             <button class="format-preset-btn" data-format="instruction">Instruction/Input/Output</button>
@@ -151,7 +183,7 @@ Output: {output}
                         </div>
                     </div>
 
-                    <div class="form-section">
+                    <div class="form-section" id="output-section">
                         <h4>Output Settings</h4>
                         <label style="display: flex; flex-direction: column; gap: 8px;">
                             <span>Output Filename:</span>
@@ -176,6 +208,16 @@ Output: {output}
 
         document.body.appendChild(modal);
 
+        // ESC key handler
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+        modal._escHandler = escHandler;
+
         // Auto-select text on focus
         modal.querySelectorAll('input[type="text"], input[type="number"]').forEach(input => {
             input.addEventListener('focus', function() { this.select(); });
@@ -188,6 +230,17 @@ Output: {output}
                 modal.querySelectorAll('.source-panel').forEach(p => p.classList.remove('active'));
                 tab.classList.add('active');
                 modal.querySelector(`#${tab.dataset.source}-source`).classList.add('active');
+
+                // Hide format template and output for file uploads
+                const formatSection = modal.querySelector('#format-section');
+                const outputSection = modal.querySelector('#output-section');
+                if (tab.dataset.source === 'file') {
+                    formatSection.style.display = 'none';
+                    outputSection.style.display = 'none';
+                } else {
+                    formatSection.style.display = 'block';
+                    outputSection.style.display = 'block';
+                }
             });
         });
 
@@ -232,7 +285,7 @@ Output: {output}
             dropZone.style.borderColor = 'var(--border-primary)';
             dropZone.style.background = 'transparent';
 
-            const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.txt'));
+            const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.txt') || f.name.endsWith('.pkl'));
             selectedFiles = files;
             displaySelectedFiles();
         });
@@ -259,10 +312,19 @@ Output: {output}
         }
 
         // Close modal
-        modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
-        modal.querySelector('.modal-cancel').addEventListener('click', () => modal.remove());
+        modal.querySelector('.modal-close').addEventListener('click', () => {
+            modal.remove();
+            if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+        });
+        modal.querySelector('.modal-cancel').addEventListener('click', () => {
+            modal.remove();
+            if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+        });
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.remove();
+            if (e.target === modal) {
+                modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+            }
         });
 
         // Create dataset
@@ -273,10 +335,11 @@ Output: {output}
 
     async function createDataset(modal, selectedFiles) {
         const activeSource = modal.querySelector('.source-tab.active').dataset.source;
-        const formatTemplate = modal.querySelector('format-template').value;
+        const formatTemplate = modal.querySelector('#format-template').value;
         const outputFilename = modal.querySelector('#output-filename').value.trim();
 
-        if (!outputFilename) {
+        // For file uploads, we don't need format template or output filename
+        if (activeSource !== 'file' && !outputFilename) {
             showModalError(modal, 'Please enter an output filename');
             return;
         }
@@ -320,8 +383,35 @@ Output: {output}
                     throw new Error('Please select at least one file')
                 }
 
-                requestData.source_type = 'file';
-                requestData.file_paths = selectedFiles.map(f => f.path);
+                // For file uploads, use FormData to upload files directly
+                const formData = new FormData();
+                selectedFiles.forEach(file => {
+                    formData.append('files', file);
+                });
+
+                progressText.textContent = 'Importing files...';
+
+                const response = await fetch('http://127.0.0.1:5000/api/datasets/import-files', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to import files');
+                }
+
+                progressBar.style.width = '100%';
+                progressText.textContent = `Files imported successfully!`;
+                progressText.style.color = 'var(--success)';
+
+                setTimeout(() => {
+                    modal.remove();
+                    document.removeEventListener('keydown', escHandler);
+                    loadAndDisplayDatasets();
+                }, 2000);
+                return;
             }
 
             progressText.textContent = 'Creating dataset...';
@@ -344,6 +434,7 @@ Output: {output}
 
             setTimeout(() => {
                 modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
                 loadAndDisplayDatasets();
             }, 2000);
         } catch (e) {
@@ -396,6 +487,16 @@ Output: {output}
 
         document.body.appendChild(modal);
 
+        // ESC key handler
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+        modal._escHandler = escHandler;
+
         // Auto-select text on focus
         modal.querySelector('#combined-output-name').addEventListener('focus', function() { this.select(); });
 
@@ -403,10 +504,19 @@ Output: {output}
         loadDatasetsForCombine(modal);
 
         // Close modal
-        modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
-        modal.querySelector('.modal-cancel').addEventListener('click', () => modal.remove());
+        modal.querySelector('.modal-close').addEventListener('click', () => {
+            modal.remove();
+            if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+        });
+        modal.querySelector('.modal-cancel').addEventListener('click', () => {
+            modal.remove();
+            if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+        });
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.remove();
+            if (e.target === modal) {
+                modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+            }
         });
 
         // Combine datasets
@@ -496,6 +606,7 @@ Output: {output}
 
             setTimeout(() => {
                 modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
                 loadAndDisplayDatasets();
             }, 2000);
 
@@ -577,6 +688,16 @@ Output: {output}
 
         document.body.appendChild(modal);
 
+        // ESC key handler
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+        modal._escHandler = escHandler;
+
         // Auto-select text on focus
         modal.querySelectorAll('input[type="text"]').forEach(input => {
             input.addEventListener('focus', function() { this.select(); });
@@ -605,10 +726,19 @@ Output: {output}
         toggleLabels[0].classList.add('active');
 
         // Close modal
-        modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
-        modal.querySelector('.modal-cancel').addEventListener('click', () => modal.remove());
+        modal.querySelector('.modal-close').addEventListener('click', () => {
+            modal.remove();
+            if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+        });
+        modal.querySelector('.modal-cancel').addEventListener('click', () => {
+            modal.remove();
+            if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+        });
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.remove();
+            if (e.target === modal) {
+                modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+            }
         });
 
         // Tokenize dataset
@@ -673,6 +803,7 @@ Output: {output}
 
             setTimeout(() => {
                 modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
             }, 3000);
 
         } catch (error) {
@@ -731,9 +862,25 @@ Output: {output}
 
         document.body.appendChild(modal);
 
-        modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
+        // ESC key handler
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+        modal._escHandler = escHandler;
+
+        modal.querySelector('.modal-close').addEventListener('click', () => {
+            modal.remove();
+            if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+        });
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.remove();
+            if (e.target === modal) {
+                modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+            }
         });
     }
 
@@ -766,14 +913,33 @@ Output: {output}
 
         document.body.appendChild(modal);
 
+        // ESC key handler
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+        modal._escHandler = escHandler;
+
         // Load datasets for removal
         loadDatasetsForRemoval(modal);
 
         // Close modal
-        modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
-        modal.querySelector('.modal-cancel').addEventListener('click', () => modal.remove());
+        modal.querySelector('.modal-close').addEventListener('click', () => {
+            modal.remove();
+            if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+        });
+        modal.querySelector('.modal-cancel').addEventListener('click', () => {
+            modal.remove();
+            if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+        });
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.remove();
+            if (e.target === modal) {
+                modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+            }
         });
 
         // Remove dataset
@@ -836,6 +1002,7 @@ Output: {output}
 
             setTimeout(() => {
                 modal.remove();
+                if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
                 loadAndDisplayDatasets();
             }, 1500);
 
