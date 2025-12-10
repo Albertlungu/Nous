@@ -10,7 +10,17 @@
 
 ## Overview
 It's a GPT-like LLM that uses a plethora of sources that are visible in the `data_loader.py` file.
-This is used as more of a learning experience for myself to understand the concepts of what AI is, and how an LLM is made, and is fully customizable.
+
+But what **makes this different?**
+
+Well, up to date, I haven't yet found a model for which I can customize literally anything with ease. Every GitHub repo that I've seen requires you to go into the depths of the model to look for `num_heads` or `embedding_dim` and read the entire 6.7k line readme file (sorta like this one).
+
+My point is that this app, PyGPT, allows you to do exactly that: configure literally any part of the model with ease through an Electron app. This means that you can use:
+- Custom datasets
+- Custom tokenizers (I have a BPE Tokenizer class that you can use, but it's kinda slow, so I also use TikToken)
+- Custom number of attention heads, stacks, embedding dimension, max sequence length, epochs, batch size, learning rate, warmup steps
+- Basically anything you can think of you can change (except for the FFN Hidden layer, that's hardcoded to `4*embedding_dim`)
+
 
 ## Quickstart
 ### If on MacOS (METAL):
@@ -28,7 +38,43 @@ cd PyGPT
 
 Ngl if ur not on either of these ur lowkey cooked for training. Generation should still work fine on CPU, but it might be a lil slow.
 
-### Using the program:
+### Start the electron app:
+**Good news:** this will be exported as an executable for MacOS
+**Bad news:** the file will be .app, most likely, and .exe will come out later, cause I don't have access to a windows PC.
+
+Once you have run one of the two setup scripts, you must then run:
+```bash
+chmod +x start_app.sh
+./start_app.sh
+```
+
+Yeah, I know, it's complicated. Baffling...
+
+#### How to use it:
+PyGPT already comes pre-installed with two models, `epoch155.pkl`, which just exists to have a backup, and `model.pkl`. Both of these can be found in `artifacts/models`. They have been trained for 155 total epochs, following this loss curve:
+![Image](concepts/assets/image.png)
+
+It is 77M parameters, which you will be able to see in the app.
+
+To use the app for **generation**:
+1. Navigate to the sidebar
+2. Click on `Model Config`
+3. Click on `Load Model`
+4. Select a model of your choice
+5. Wait for it to load
+6. Go back to `Chat`, and ask away!
+
+To use the app for **training**:
+1. Go to `Datasets`
+2. Click on `List Datasets` to see all available datasets. If there are none, use `Create Dataset`
+3. Go to `Training`
+4. Select whatever preferences you want
+5. Click on `Save Config`
+6. Press `Start Training`
+7. Sit back, take some raw popcorn kernels, put them in a pan, and put the pan on your PC. In about 5 minutes, you'll have a lovely snack and a discombobulated computer. ❤️
+
+
+### Using the program with the CLI (Not Recommended - Use Electron):
 To use this program, assuming all earlier steps have been completed:
 ```bash
 python src/main.py
