@@ -304,6 +304,14 @@ def set_tiktoken():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/api/tokenizers/bpe-progress', methods=['GET'])
+def bpe_progress():
+    """
+    Get current BPE training progress
+    """
+    progress = tokenizer_interface.get_bpe_progress()
+    return jsonify(progress)
+
 
 #----------------------------------- Main ------------------------------------
 if __name__ == '__main__':

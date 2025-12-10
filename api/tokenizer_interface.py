@@ -17,6 +17,16 @@ class TokenizerInterface:
         self.tiktoken_tokenizer = TikToken()
         self.tokenizer = TikToken() # TikToken by default, this one changes, the one above does not.
 
+        # BPE training progress tracking
+        self.bpe_training_state = {
+            'is_training': False,
+            'current_merge': 0,
+            'total_merges': 0,
+            'is_complete': False,
+            'error': None,
+            'output_path': None
+        }
+
     def list_tokenizers(self):
         """
         List all available tokenizers
@@ -86,31 +96,72 @@ class TokenizerInterface:
 
     def train_bpe(self, dataset_path, vocab_size, output_path):
         """
-        Train a new BPE tokenizer
+        Train a new BPE tokenizer with progress tracking
 
         Args:
             dataset_path (str): Path to dataset file
             vocab_size (int): Desired vocabulary size
             output_path (str): Where to save the trained tokenizer
         """
-        import pickle
+        import threading
 
-        with open(dataset_path, "r", encoding='utf-8') as f:
-            dataset = f.read()
+        # Reset progress state
+        self.bpe_training_state = {
+            'is_training': True,
+            'current_merge': 0,
+            'total_merges': vocab_size - 256,
+            'is_complete': False,
+            'error': None,
+            'output_path': output_path
+        }
 
-        tokenizer = BPETokenizer(vocab_size)
+        def train_worker():
+            try:
+                with open(dataset_path, "r", encoding='utf-8') as f:
+                    dataset = f.read()
 
-        encoded = dataset.encode('utf-8')
-        ids = list(encoded)
+                tokenizer = BPETokenizer(vocab_size)
 
-        tokenizer.make_merges(ids, len(ids))
+                encoded = dataset.encode('utf-8')
+                ids = list(encoded)
 
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, "wb") as f:
-            pickle.dump(tokenizer, f)
+                # Progress callback
+                def update_progress(current, total):
+                    self.bpe_training_state['current_merge'] = current
+                    self.bpe_training_state['total_merges'] = total
 
-        self.tokenizer = tokenizer
-        self.current_tokenizer = 'bpe'
+                tokenizer.make_merges(ids, len(ids), progress_callback=update_progress)
+
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                with open(output_path, "wb") as f:
+                    pickle.dump(tokenizer, f)
+
+                self.tokenizer = tokenizer
+                self.current_tokenizer = 'bpe'
+
+                # Mark complete
+                self.bpe_training_state['is_complete'] = True
+                self.bpe_training_state['is_training'] = False
+
+            except Exception as e:
+                self.bpe_training_state['error'] = str(e)
+                self.bpe_training_state['is_training'] = False
+                print(f"BPE training error: {e}")
+                import traceback
+                traceback.print_exc()
+
+        # Start training in background thread
+        training_thread = threading.Thread(target=train_worker, daemon=True)
+        training_thread.start()
+
+    def get_bpe_progress(self):
+        """
+        Get current BPE training progress
+
+        Returns:
+            dict: Progress state with current_merge, total_merges, is_complete, error
+        """
+        return self.bpe_training_state
 
     def load_bpe(self, tokenizer_path):
         """
