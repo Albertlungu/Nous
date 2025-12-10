@@ -101,14 +101,12 @@
                         <h3>Tokenizer Selection</h3>
 
                         <div class="tokenizer-type-select">
-                            <label class="radio-label">
-                                <input type="radio" name="tokenizer-type" value="tiktoken" checked>
-                                <span>TikToken</span>
+                            <span class="toggle-label">TikToken</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="tokenizer-toggle">
+                                <span class="toggle-slider"></span>
                             </label>
-                            <label class="radio-label">
-                                <input type="radio" name="tokenizer-type" value="bpe">
-                                <span>BPE</span>
-                            </label>
+                            <span class="toggle-label">BPE</span>
                         </div>
 
                         <div id="tiktoken-options" class="tokenizer-options">
