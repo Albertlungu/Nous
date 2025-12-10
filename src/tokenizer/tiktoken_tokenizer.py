@@ -21,11 +21,11 @@ class TikToken:
         eos_token_id (int): End of sequence token id
         padding_token_id (int): Padding token id, set to 0
     """
-    def __init__(self):
+    def __init__(self, encoding="r50k_base"):
         """
         Initializing Tikotken class
         """
-        self.enc = tiktoken.get_encoding("r50k_base")
+        self.enc = tiktoken.get_encoding(encoding)
         original_vocab = self.enc.max_token_value + 1
         self.vocab_size = 50304  # +1 because max_token_value is 0-indexed
         self._original_vocab_size = original_vocab

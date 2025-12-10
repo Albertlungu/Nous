@@ -9,10 +9,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const resetConfigBtn = document.getElementById('reset-config-btn');
     const trainingStatus = document.getElementById('training-status');
 
+    // Tokenizer elements
+    const tokenizerToggle = document.getElementById('tokenizer-toggle');
+    const toggleLabels = document.querySelectorAll('.toggle-label');
+    const tiktokenOptions = document.getElementById('tiktoken-options');
+    const bpeOptions = document.getElementById('bpe-options');
+    const bpeChoiceRadios = document.querySelectorAll('input[name="bpe-choice"]');
+    const bpeExisting = document.getElementById('bpe-existing');
+    const bpeNew = document.getElementById('bpe-new');
+    const setTiktokenBtn = document.getElementById('set-tiktoken-btn');
+    const loadBpeBtn = document.getElementById('load-bpe-btn');
+    const trainBpeBtn = document.getElementById('train-bpe-btn');
+    const bpeDatasetSelect = document.getElementById('bpe-dataset-select');
+    const tokenizerStatus = document.getElementById('tokenizer-status');
+
     let statusInterval = null;
 
     // Load saved config on page load
     loadConfig();
+
+    // Load datasets for BPE training
+    loadDatasets();
 
     if (startTrainingBtn) {
         startTrainingBtn.addEventListener('click', async () => {
@@ -47,6 +64,62 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resetConfigBtn) {
         resetConfigBtn.addEventListener('click', () => {
             resetConfig();
+        });
+    }
+
+    // Tokenizer type toggle
+    if (tokenizerToggle) {
+        tokenizerToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                // BPE selected
+                tiktokenOptions.style.display = 'none';
+                bpeOptions.style.display = 'flex';
+                toggleLabels[0].classList.remove('active');
+                toggleLabels[1].classList.add('active');
+            } else {
+                // TikToken selected
+                tiktokenOptions.style.display = 'flex';
+                bpeOptions.style.display = 'none';
+                toggleLabels[0].classList.add('active');
+                toggleLabels[1].classList.remove('active');
+            }
+        });
+
+        // Set initial state
+        toggleLabels[0].classList.add('active');
+    }
+
+    // BPE choice toggle
+    bpeChoiceRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (e.target.value === 'existing') {
+                bpeExisting.style.display = 'flex';
+                bpeNew.style.display = 'none';
+            } else {
+                bpeExisting.style.display = 'none';
+                bpeNew.style.display = 'flex';
+            }
+        });
+    });
+
+    // Set TikToken button
+    if (setTiktokenBtn) {
+        setTiktokenBtn.addEventListener('click', async () => {
+            await setTikToken();
+        });
+    }
+
+    // Load BPE button
+    if (loadBpeBtn) {
+        loadBpeBtn.addEventListener('click', async () => {
+            await loadBPE();
+        });
+    }
+
+    // Train BPE button
+    if (trainBpeBtn) {
+        trainBpeBtn.addEventListener('click', async () => {
+            await trainBPE();
         });
     }
 
@@ -295,6 +368,146 @@ document.addEventListener('DOMContentLoaded', () => {
 
         trainingStatus.innerHTML = '';
         trainingStatus.appendChild(errorDiv);
+
+        setTimeout(() => errorDiv.remove(), 5000);
+    }
+
+    async function loadDatasets() {
+        try {
+            const response = await fetch('http://127.0.0.1:5000/api/datasets/list');
+
+            if (!response.ok) {
+                console.warn('Could not load datasets');
+                return;
+            }
+
+            const data = await response.json();
+
+            if (data.datasets && data.datasets.length > 0) {
+                data.datasets.forEach(dataset => {
+                    const option = document.createElement('option');
+                    option.value = dataset.path;
+                    option.textContent = `${dataset.name} (${dataset.examples} examples)`;
+                    bpeDatasetSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.warn('Failed to load datasets:', error);
+        }
+    }
+
+    async function setTikToken() {
+        const tokenizerName = document.getElementById('tiktoken-name').value.trim();
+
+        if (!tokenizerName) {
+            showTokenizerError('Please enter a tokenizer name');
+            return;
+        }
+
+        try {
+            const response = await fetch('http://127.0.0.1:5000/api/tokenizers/set-tiktoken', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tokenizer_name: tokenizerName })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to set TikToken');
+            }
+
+            showTokenizerInfo(`TikToken set to ${tokenizerName}`, true);
+        } catch (error) {
+            console.error('Set TikToken error:', error);
+            showTokenizerError(`Failed to set TikToken: ${error.message}`);
+        }
+    }
+
+    async function loadBPE() {
+        const fileInput = document.getElementById('bpe-file-input');
+        const file = fileInput.files[0];
+
+        if (!file) {
+            showTokenizerError('Please select a tokenizer file');
+            return;
+        }
+
+        try {
+            const response = await fetch('http://127.0.0.1:5000/api/tokenizers/load-bpe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tokenizer_path: file.path })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to load BPE');
+            }
+
+            showTokenizerInfo('BPE tokenizer loaded successfully', true);
+        } catch (error) {
+            console.error('Load BPE error:', error);
+            showTokenizerError(`Failed to load BPE: ${error.message}`);
+        }
+    }
+
+    async function trainBPE() {
+        const datasetPath = bpeDatasetSelect.value;
+        const vocabSize = parseInt(document.getElementById('bpe-vocab-size').value);
+
+        if (!datasetPath) {
+            showTokenizerError('Please select a dataset');
+            return;
+        }
+
+        showTokenizerInfo('Training BPE tokenizer... This may take a while.');
+
+        try {
+            const response = await fetch('http://127.0.0.1:5000/api/tokenizers/train-bpe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    dataset_path: datasetPath,
+                    vocab_size: vocabSize,
+                    output_path: `artifacts/tokenizer/bpe_${vocabSize}.pkl`
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to train BPE');
+            }
+
+            showTokenizerInfo(`BPE tokenizer trained successfully! Saved to ${data.path}`, true);
+        } catch (error) {
+            console.error('Train BPE error:', error);
+            showTokenizerError(`Failed to train BPE: ${error.message}`);
+        }
+    }
+
+    function showTokenizerInfo(message, autoRemove = false) {
+        const infoDiv = document.createElement('div');
+        infoDiv.style.cssText = 'background: var(--bg-tertiary); border: 1px solid var(--border-primary); padding: 12px; border-radius: 8px; color: var(--text-primary);';
+        infoDiv.textContent = message;
+
+        tokenizerStatus.innerHTML = '';
+        tokenizerStatus.appendChild(infoDiv);
+
+        if (autoRemove) {
+            setTimeout(() => infoDiv.remove(), 3000);
+        }
+    }
+
+    function showTokenizerError(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.textContent = message;
+
+        tokenizerStatus.innerHTML = '';
+        tokenizerStatus.appendChild(errorDiv);
 
         setTimeout(() => errorDiv.remove(), 5000);
     }

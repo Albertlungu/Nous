@@ -97,6 +97,58 @@
                 <div id="training-view" class="view">
                     <h2>Training</h2>
 
+                    <div id="tokenizer-panel">
+                        <h3>Tokenizer Selection</h3>
+
+                        <div class="tokenizer-type-select">
+                            <label class="radio-label">
+                                <input type="radio" name="tokenizer-type" value="tiktoken" checked>
+                                <span>TikToken</span>
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="tokenizer-type" value="bpe">
+                                <span>BPE</span>
+                            </label>
+                        </div>
+
+                        <div id="tiktoken-options" class="tokenizer-options">
+                            <label>Tokenizer Name: <input type="text" id="tiktoken-name" value="gpt2" placeholder="e.g., gpt2, cl100k_base"></label>
+                            <button class="config-btn" id="set-tiktoken-btn">Set TikToken</button>
+                        </div>
+
+                        <div id="bpe-options" class="tokenizer-options" style="display: none;">
+                            <div class="bpe-choice">
+                                <label class="radio-label">
+                                    <input type="radio" name="bpe-choice" value="existing" checked>
+                                    <span>Use Existing BPE</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="bpe-choice" value="new">
+                                    <span>Create New BPE</span>
+                                </label>
+                            </div>
+
+                            <div id="bpe-existing" class="bpe-method">
+                                <label>Select Tokenizer File:
+                                    <input type="file" id="bpe-file-input" accept=".pkl">
+                                </label>
+                                <button class="config-btn" id="load-bpe-btn">Load BPE</button>
+                            </div>
+
+                            <div id="bpe-new" class="bpe-method" style="display: none;">
+                                <label>Dataset:
+                                    <select id="bpe-dataset-select">
+                                        <option value="">Select a dataset...</option>
+                                    </select>
+                                </label>
+                                <label>Vocab Size: <input type="number" id="bpe-vocab-size" value="5000" min="1000" max="50000"></label>
+                                <button class="config-btn" id="train-bpe-btn">Train BPE Tokenizer</button>
+                            </div>
+                        </div>
+
+                        <div id="tokenizer-status"></div>
+                    </div>
+
                     <div id="training-config-panel">
                         <h3>Model Configuration</h3>
                         <div class="config-grid">

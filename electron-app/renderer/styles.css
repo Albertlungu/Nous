@@ -830,3 +830,151 @@ h2 {
     border-color: var(--border-focus);
 }
 
+/* Tokenizer panel */
+#tokenizer-panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+#tokenizer-panel h3 {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    margin-top: 0;
+}
+
+.tokenizer-type-select {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.toggle-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: color 0.3s ease;
+}
+
+.toggle-label.active {
+    color: var(--accent-primary);
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 28px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--bg-tertiary);
+    border: 2px solid var(--border-primary);
+    transition: 0.3s;
+    border-radius: 28px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 2px;
+    background-color: var(--text-secondary);
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(24px);
+    background-color: white;
+}
+
+.toggle-switch:hover .toggle-slider {
+    border-color: var(--accent-primary);
+}
+
+.tokenizer-options {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.tokenizer-options label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.tokenizer-options input[type="text"],
+.tokenizer-options input[type="number"],
+.tokenizer-options select {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--text-primary);
+    font-size: 13px;
+    transition: border-color 0.2s ease;
+}
+
+.tokenizer-options input[type="text"]:focus,
+.tokenizer-options input[type="number"]:focus,
+.tokenizer-options select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.tokenizer-options input[type="file"] {
+    padding: 8px 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.bpe-choice {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.bpe-method {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+}
+
+#tokenizer-status {
+    margin-top: 16px;
+}
+

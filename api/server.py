@@ -131,7 +131,7 @@ def start_training():
 
     try:
         training_interface.start_training(config)
-        return jsonify({"sucess": True, "message": "Training started"})
+        return jsonify({"success": True, "message": "Training started"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -259,6 +259,51 @@ def switch_tokenizer():
         return jsonify({"success": True, "message": f"Switched to {tokenizer_name}"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/tokenizers/train-bpe', methods=['POST'])
+def train_bpe_tokenizer():
+    """
+    Trains a new BPE tokenizer.
+    """
+    data = request.json
+    dataset_path = data.get('dataset_path')
+    vocab_size = data.get('vocab_size', 5000)
+    output_path = data.get('output_path', 'artifacts/tokenizer/custom_bpe.pkl')
+
+    try:
+        tokenizer_interface.train_bpe(dataset_path, vocab_size, output_path)
+        return jsonify({"success": True, "message": "BPE Tokenizer trained successfully", "path": output_path})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/tokenizers/load-bpe', methods=['POST'])
+def load_bpe_tokenizer():
+    """
+    Loads BPE tokenizer from custom path
+    """
+    data = request.json
+    tokenizer_path = data.get('tokenizer_path')
+
+    try:
+        tokenizer_interface.load_bpe(tokenizer_path)
+        return jsonify({"success": True, "messsage":f"Loaded BPE tokenizer from {tokenizer_path}"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/tokenizers/set-tiktoken', methods=['POST'])
+def set_tiktoken():
+    """
+    Set TikToken tokenizer with specific name
+    """
+    data = request.json
+    name = data.get('tokenizer_name', 'r50k_base')
+
+    try:
+        tokenizer_interface.set_tiktoken(name)
+        return jsonify({"success": True, "message":f"Set tokenizer to TikToken's {name}"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 #----------------------------------- Main ------------------------------------
 if __name__ == '__main__':

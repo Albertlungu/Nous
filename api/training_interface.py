@@ -46,6 +46,18 @@ class TrainingInterface:
         if self.is_training:
             raise Exception("Training already in progress")
 
+        token_ids_path = config.get('token_ids_path')
+        dataset_path = config.get('dataset_path')
+
+        if not token_ids_path and not dataset_path:
+            raise Exception("No dataset provided. Please provide either 'token_ids_path' or 'dataset_path' in config")
+
+        if token_ids_path and not os.path.exists(token_ids_path):
+            raise Exception(f"Token IDs file not found: {token_ids_path}")
+
+        if dataset_path and not os.path.exists(dataset_path):
+            raise Exception(f"Dataset file not found: {dataset_path}")
+
         self.stop_requested = False
         self.is_paused = False
         self.total_epochs = config.get('epochs', 10)
@@ -161,7 +173,7 @@ class TrainingInterface:
             except Exception as e:
                 self._log(f"Error during training: {str(e)}")
                 import traceback
-                self._log(f"Training complete. Model saved to {final_path}")
+                self._log(traceback.format_exc())
             finally:
                 self.is_training = False
                 self.is_paused = False
