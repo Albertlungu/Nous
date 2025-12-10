@@ -17,8 +17,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && isGenerating) {
             isGenerating = false;
-            if (stopBtn) stopBtn.style.display = 'none';
-            if (sendBtn) sendBtn.style.display = 'block';
+
+            if (stopBtn && sendBtn) {
+                stopBtn.style.opacity = '0';
+                stopBtn.style.transform = 'scale(0.8)';
+
+                setTimeout(() => {
+                    stopBtn.style.display = 'none';
+                    sendBtn.style.display = 'block';
+
+                    requestAnimationFrame(() => {
+                        sendBtn.style.opacity = '1';
+                        sendBtn.style.transform = 'scale(1)';
+                    });
+                }, 150);
+            }
         }
     });
 
@@ -36,8 +49,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (stopBtn) {
         stopBtn.addEventListener('click', () => {
             isGenerating = false;
-            stopBtn.style.display = 'none';
-            sendBtn.style.display = 'block';
+
+            stopBtn.style.opacity = '0';
+            stopBtn.style.transform = 'scale(0.8)';
+
+            setTimeout(() => {
+                stopBtn.style.display = 'none';
+                sendBtn.style.display = 'block';
+
+                requestAnimationFrame(() => {
+                    sendBtn.style.opacity = '1';
+                    sendBtn.style.transform = 'scale(1)';
+                });
+            }, 150);
         });
     }
 
@@ -82,8 +106,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Show stop button
         isGenerating = true;
-        if (sendBtn) sendBtn.style.display = 'none';
-        if (stopBtn) stopBtn.style.display = 'block';
+        if (sendBtn && stopBtn) {
+            sendBtn.style.opacity = '0';
+            sendBtn.style.transform = 'scale(0.8)';
+
+            setTimeout(() => {
+                sendBtn.style.display = 'none';
+                stopBtn.style.display = 'block';
+
+                requestAnimationFrame(() => {
+                    stopBtn.style.opacity = '1';
+                    stopBtn.style.transform = 'scale(1)';
+                });
+            }, 150);
+        }
 
         // Show loading indicator
         const loadingId = showLoading();
@@ -119,8 +155,20 @@ document.addEventListener('DOMContentLoaded', () => {
             showError(`Failed to generate response: ${error.message}`);
         } finally {
             isGenerating = false;
-            if (sendBtn) sendBtn.style.display = 'block';
-            if (stopBtn) stopBtn.style.display = 'none';
+            if (sendBtn && stopBtn) {
+                stopBtn.style.opacity = '0';
+                stopBtn.style.transform = 'scale(0.8)';
+
+                setTimeout(() => {
+                    stopBtn.style.display = 'none';
+                    sendBtn.style.display = 'block';
+
+                    requestAnimationFrame(() => {
+                        sendBtn.style.opacity = '1';
+                        sendBtn.style.transform = 'scale(1)';
+                    });
+                }, 150);
+            }
         }
     }
 
@@ -193,7 +241,14 @@ document.addEventListener('DOMContentLoaded', () => {
         messageDiv.appendChild(contentDiv);
 
         messagesContainer.appendChild(messageDiv);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        // Scroll the chat container
+        const chatContainer = document.getElementById('chat-container');
+        if (chatContainer) {
+            setTimeout(() => {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }, 10);
+        }
 
         return messageDiv
     }
@@ -202,7 +257,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const contentDiv = messageElement.querySelector('.message-content');
         if (contentDiv) {
             contentDiv.textContent = content;
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            // Scroll the chat container
+            const chatContainer = document.getElementById('chat-container');
+            if (chatContainer) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
         }
     }
 
