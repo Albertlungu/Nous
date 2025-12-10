@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveConfigBtn = document.getElementById('save-config-btn');
     const resetConfigBtn = document.getElementById('reset-config-btn');
     const calcParamsBtn = document.getElementById('calc-params-btn');
+    const extendTrainingBtn = document.getElementById('extend-training-btn');
     const trainingStatus = document.getElementById('training-status');
 
     // Tokenizer elements
@@ -80,6 +81,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (calcParamsBtn) {
         calcParamsBtn.addEventListener('click', () => {
             calculateParameters();
+        });
+    }
+
+    if (extendTrainingBtn) {
+        extendTrainingBtn.addEventListener('click', () => {
+            showExtendTrainingModal();
         });
     }
 
@@ -487,9 +494,25 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        showTokenizerInfo('Training BPE tokenizer... This may take a while.');
+        // Create progress bar
+        const progressHTML = `
+            <div id="bpe-progress-container" style="margin-top: 12px;">
+                <div style="color: var(--text-secondary); margin-bottom: 8px; font-size: 13px;">
+                    <span id="bpe-progress-text">Starting BPE training...</span>
+                </div>
+                <div style="width: 100%; height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden;">
+                    <div id="bpe-progress-bar" style="width: 0%; height: 100%; background: var(--accent-primary); transition: width 0.3s;"></div>
+                </div>
+                <div style="color: var(--text-tertiary); margin-top: 4px; font-size: 12px;" id="bpe-progress-details">
+                    Merges: 0 / ${vocabSize - 256}
+                </div>
+            </div>
+        `;
+
+        tokenizerStatus.innerHTML = progressHTML;
 
         try {
+            // Start BPE training (non-blocking)
             const response = await fetch('http://127.0.0.1:5000/api/tokenizers/train-bpe', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -503,10 +526,49 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to train BPE');
+                throw new Error(data.error || 'Failed to start BPE training');
             }
 
-            showTokenizerInfo(`BPE tokenizer trained successfully! Saved to ${data.path}`, true);
+            // Poll for progress
+            const progressInterval = setInterval(async () => {
+                try {
+                    const statusResponse = await fetch('http://127.0.0.1:5000/api/tokenizers/bpe-progress');
+                    const status = await statusResponse.json();
+
+                    const progressBar = document.getElementById('bpe-progress-bar');
+                    const progressText = document.getElementById('bpe-progress-text');
+                    const progressDetails = document.getElementById('bpe-progress-details');
+
+                    if (progressBar && status.current_merge !== undefined) {
+                        const totalMerges = vocabSize - 256;
+                        const progress = (status.current_merge / totalMerges) * 100;
+
+                        progressBar.style.width = `${progress}%`;
+                        progressText.textContent = `Training BPE tokenizer... ${progress.toFixed(1)}%`;
+                        progressDetails.textContent = `Merges: ${status.current_merge} / ${totalMerges}`;
+
+                        if (status.is_complete) {
+                            clearInterval(progressInterval);
+                            progressBar.style.width = '100%';
+                            progressText.textContent = 'BPE tokenizer trained successfully!';
+                            progressText.style.color = 'var(--success)';
+                            progressDetails.textContent = `Saved to ${status.output_path || data.path}`;
+
+                            setTimeout(() => {
+                                showTokenizerInfo(`BPE tokenizer trained successfully! Saved to ${status.output_path || data.path}`, true);
+                            }, 2000);
+                        }
+
+                        if (status.error) {
+                            clearInterval(progressInterval);
+                            throw new Error(status.error);
+                        }
+                    }
+                } catch (pollError) {
+                    console.error('Progress poll error:', pollError);
+                }
+            }, 500); // Poll every 500ms
+
         } catch (error) {
             console.error('Train BPE error:', error);
             showTokenizerError(`Failed to train BPE: ${error.message}`);

@@ -140,12 +140,14 @@ class BPETokenizer:
                 i += 1
         return new_input
 
-    def make_merges(self, input, dataset_length):
+    def make_merges(self, input, dataset_length, progress_callback=None):
         """
         Merge adjacent ids in a list of ids until the vocab size is reached. Why? This is to increase the vocab size. This is to compress more tokens into a a single token, making the context length more compact, and the model can remember more at a time.
         Args:
             input (list): The list of ids to merge.
             dataset_length (int): The length of the dataset to consider for merges.
+            progress_callback (callable, optional): Callback function to report progress.
+                Called with (current_merge, total_merges)
 
         Returns:
             list: The list of ids with adjacent ids merged until the vocab size is reached.
@@ -155,8 +157,12 @@ class BPETokenizer:
         merges = {}
         input = list(input)
         base_vocab_start = self.base_vocab_size
-        print("Starging merges now: ")
+        print("Starting merges now: ")
         for i in tqdm(range(num_merges)):
+            # Report progress
+            if progress_callback:
+                progress_callback(i, num_merges)
+
             # Compute pair frequencies in the dataset
             stats = self.get_stats(input[:dataset_length])
             if not stats:
@@ -181,6 +187,10 @@ class BPETokenizer:
             input = self.merge(input[:dataset_length], pair, idx)
             merges[pair] = idx
             self.vocab[idx] = self.vocab[pair[0]] + self.vocab[pair[1]]
+
+        # Final progress report
+        if progress_callback:
+            progress_callback(num_merges, num_merges)
 
         self.merges = merges
         self._ensure_vocab()
