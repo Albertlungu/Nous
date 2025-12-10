@@ -737,3 +737,96 @@ h2 {
     margin-bottom: 12px;
     font-size: 13px;
 }
+
+
+/* Training CSS */
+#training-config-panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+#training-config-panel h3 {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+    margin-top: 20px;
+}
+
+#training-config-panel h3:first-of-type {
+    margin-top: 0;
+}
+
+.config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.config-grid label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.config-grid input {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--text-primary);
+    font-size: 13px;
+    width: 100px;
+    transition: border-color 0.2s ease;
+}
+
+.config-grid input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.config-grid input[readonly] {
+    background: var(--bg-primary);
+    color: var(--text-tertiary);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.config-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 3px solid var(--border-primary);
+}
+
+.config-btn {
+    padding: 10px 20px;
+    background: var(--accent-primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.config-btn:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+}
+
+.config-btn.secondary {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-focus);
+}
+
