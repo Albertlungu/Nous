@@ -573,20 +573,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Format the number with commas
         const formattedParams = totalParams.toLocaleString();
-        const paramsInMillions = (totalParams / 1_000_000).toFixed(2);
-        const paramsInBillions = (totalParams / 1_000_000_000).toFixed(2);
-        const paramsInTrillions = (totalParams / 1_000_000_000_000).toFixed(2);
 
         // Display the result
         const paramDisplay = document.getElementById('param-display');
         const paramCount = document.getElementById('param-count');
 
-        if (paramsInMillions >= 1000) {
-            paramCount.innerHTML = `${formattedParams}<br><span style="font-size: 16px; color: var(--text-secondary);">(${paramsInBillions}B parameters)</span>`;
-        } else if (paramsInBillions >= 1000) {
-            paramCount.innerHTML = `${formattedParams}<br><span style="font-size: 16px; color: var(--text-secondary);">(${paramsInTrillions}M parameters)</span>`;
+        const millions = totalParams / 1_000_000;
+        const billions = totalParams / 1_000_000_000;
+        const trillions = totalParams / 1_000_000_000_000;
+
+        if (trillions >= 1) {
+            paramCount.innerHTML =
+                `${formattedParams}<br><span style="font-size: 16px; color: var(--text-secondary);">(${trillions.toFixed(2)}T parameters)</span>`;
+        } else if (billions >= 1) {
+            paramCount.innerHTML =
+                `${formattedParams}<br><span style="font-size: 16px; color: var(--text-secondary);">(${billions.toFixed(2)}B parameters)</span>`;
         } else {
-            paramCount.innerHTML = `${formattedParams}<br><span style="font-size: 16px; color: var(--text-secondary);">(${paramsInMillions}M parameters)</span>`;
+            paramCount.innerHTML =
+                `${formattedParams}<br><span style="font-size: 16px; color: var(--text-secondary);">(${millions.toFixed(2)}M parameters)</span>`;
         }
 
         paramDisplay.style.display = 'block';
