@@ -1,16 +1,17 @@
-#!/bin/bash
+echo "=== PyGPT Metal Setup Script ==="
+echo ""
 
-# This script sets up the development environment by installing necessary dependencies and configuring settings.
-
-# Install pyenv if not already
+echo "Installing PyEnv..."
 curl https://pyenv.run | bash
 pyenv --version
 
-
-pyenv install 3.10 # This will install python 3.10.19 by default
+echo ""
+echo "Installing Python 3.10"
+pyenv install 3.10
 pyenv local 3.10
 
 # Run this to add the setup code to both ~/.zshrc and ~/.zprofile
+echo "Configuring shell environment..."
 cat << 'EOF' >> ~/.zshrc
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
@@ -23,13 +24,53 @@ export PYENV_ROOT="$HOME/.pyenv"
 eval "$(pyenv init - zsh)"
 EOF
 
-# Use the shell and verify python version
 pyenv shell 3.10
-python --version # This should return "Python 3.10.19"
+python --version # Should return Python 3.10.x
 
-
-python -m venv venv # Creates a virtual environment named 'venv'
+echo ""
+echo "Setting Up Virtual Environment..."
+python -m venv venv
 source venv/bin/activate
 which python # Should return "/Users/[your_user]/[something]/PyGPT/venv/bin/python"
 
+echo ""
+echo "Installing Python dependencies..."
 pip install -r requirements.txt
+
+echo ""
+echo "=== Setting up Node.js and Electron ==="
+
+# Check if Node.js is installed
+if ! command -v node &> /dev/null; then
+    echo "Node.js not found. Installing via Homebrew..."
+    if ! command -v brew &> /dev/null; then
+        echo "Homebrew not found. Installing Homebrew first..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    fi
+    brew install node
+else
+    echo "Node.js is already installed: $(node --version)"
+fi
+
+echo ""
+echo "Installing Electron dependencies..."
+cd electron-app
+npm install
+cd ..
+
+echo ""
+echo "=== Setup Complete! ==="
+echo ""
+echo "To start the app:"
+echo "  1. In one terminal, start the Flask server:"
+echo "     source venv/bin/activate"
+echo "     python api/server.py"
+echo ""
+echo "  2. In another terminal, start the Electron app:"
+echo "     cd electron-app"
+echo "     npm start"
+echo ""
+echo "Or use the convenience script:"
+echo "     ./start_app.sh"
+
+echo "This application has been made by Albert Lungu. Enjoy!
