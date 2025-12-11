@@ -8,26 +8,10 @@
 
 # νοῦς (nous) — A Learning LLM Project
 
-## Quickstart
-1. Download the νοῦς app
-   1. Either from GitHub
-   2. Or:
-```bash
-git clone https://github.com/Albertlungu/Nous.git
-cd Nous
-npm run build:mac
-```
-2. Now that the app is saved on your computer, it is fully self contained, meaning you can move it in and out of directories with ease.
-3. Open the app.
-Enjoy!
-
->[!NOTE]
-> If you see some errors in the console (text in red), just quit the app with CMD+Q then reopen it. This usually fixes the issues.
-> Don't worry about error (400 BAD REQUEST), that won't go away, it still works.
-
-Some example prompts you can give it to see exactly hoe intelligent it is:
-> Explain what a neural network is.
-> Explain what photosynthesis is.
+<div style="position: relative; width: 100%; height: 600px; margin: 40px 0; display: flex; align-items: center; justify-content:center;">
+  <img src="concepts/assets/light_mode.png" style="position: absolute; top: 0; left: 0; height: 300px; z-index: 1;">
+  <img src="concepts/assets/dark_mode.png" style="position: absolute; top: 200px; left: 310px; height: 300px; z-index: 2;">
+</div>
 
 ## Overview
 νοῦς (nous, Greek for "mind/intellect") is a GPT-like LLM that uses a plethora of sources that are visible in the dataset loader.
@@ -42,37 +26,32 @@ My point is that this app, νοῦς, allows you to do exactly that: configure l
 - Custom number of attention heads, stacks, embedding dimension, max sequence length, epochs, batch size, learning rate, warmup steps
 - Basically anything you can think of you can change (except for the FFN Hidden layer, that's hardcoded to `4*embedding_dim`)
 
-
-## Quickstart (Without Download)
-### If on MacOS (METAL):
+## Quickstart
+1. Download the νοῦς app
+   1. Either from GitHub
+   2. Or:
 ```bash
 git clone https://github.com/Albertlungu/Nous.git
 cd Nous
-./metal_setup.sh
+npm run build:mac
 ```
-### If on CUDA-enabled GPU:
-```bash
-git clone https://github.com/Albertlungu/Nous.git
-cd Nous
-./cuda_setup.sh
-```
+2. Now that the app is saved on your computer, it is fully self contained, meaning you can move it in and out of directories with ease.
+3. Open the app.
+Enjoy!
 
-Ngl if ur not on either of these ur lowkey cooked for training. Generation should still work fine on CPU, but it might be a lil slow.
+**To see more details, visit the user guide below.**
 
-### Start the electron app:
-**Good news:** this will be exported as an executable for MacOS
-**Bad news:** the file will be .app, most likely, and .exe will come out later, cause I don't have access to a windows PC.
+>[!NOTE]
+> If you see some errors in the console (text in red), just quit the app with CMD+Q then reopen it. This usually fixes the issues.
+> Don't worry about error (400 BAD REQUEST), that won't go away, it still works.
 
-Once you have run one of the two setup scripts, you must then run:
-```bash
-chmod +x start_app.sh
-./start_app.sh
-```
-
-Yeah, I know, it's complicated. Baffling...
+Some example prompts you can give it to see exactly how intelligent it is:
+> Explain what a neural network is.
+>
+> Explain what photosynthesis is.
 
 #### How to use it:
-PyGPT already comes pre-installed with two models, `epoch155.pkl`, which just exists to have a backup, and `model.pkl`. Both of these can be found in `artifacts/models`. They have been trained for 155 total epochs, following this loss curve:
+PyGPT already comes pre-installed with two models, `epoch155.pkl`, which just exists to have a backup, and `model.pkl`. Both of these can be found by right clicking the app and selecting `"Show Package Contents"`, then visiting `contents/resources/artifacts/models`. They have been trained for 155 total epochs, following this loss curve:
 ![Image](concepts/assets/image.png)
 
 It is 77M parameters, which you will be able to see in the app.
@@ -94,6 +73,33 @@ To use the app for **training**:
 6. Press `Start Training`
 7. Sit back, take some raw popcorn kernels, put them in a pan, and put the pan on your PC. In about 5 minutes, you'll have a lovely snack and a discombobulated computer. ❤️
 
+## Quickstart (CLI)
+### If on MacOS (METAL):
+```bash
+git clone https://github.com/Albertlungu/Nous.git
+cd Nous
+./metal_setup.sh
+```
+### If on CUDA-enabled GPU:
+```bash
+git clone https://github.com/Albertlungu/Nous.git
+cd Nous
+./cuda_setup.sh
+```
+
+Ngl if ur not on either of these ur lowkey cooked for training. Generation should still work fine on CPU, but it might be a lil slow.
+
+### To use Electron app locally (not downloaded app, just electron):
+**Good news:** this will be exported as an executable for MacOS
+**Bad news:** the file will be .app, most likely, and .exe will come out later, cause I don't have access to a windows PC.
+
+Once you have run one of the two setup scripts, you must then run:
+```bash
+chmod +x start_app.sh
+./start_app.sh
+```
+
+Yeah, I know, it's complicated. Baffling...
 
 ### Using the program with the CLI (Not Recommended - Use Electron):
 To use this program, assuming all earlier steps have been completed:
@@ -465,9 +471,7 @@ embedded = embeddings[token_ids]
 ## Transformer
 This project is based on a multi-head attention transformer architecture.
 ### What is the transformer architecture?
-A transformer-based model is made up of either an encoder or decoder, or both. This model is based on the decoder architecture, mimicking ChatGPT. In the following graph, the encoder architecture is on the left, and the decoding architecture is on the right. 
-
-<img src = 'concepts/assets/image.png' width = '600'></img>
+A transformer-based model is made up of either an encoder or decoder, or both. This model is based on the decoder architecture, mimicking ChatGPT. In the following graph, the encoder architecture is on the left, and the decoding architecture is on the right
 
 This description will be focusing on the decoder architecture, since that is what is used in this model.
 
@@ -475,7 +479,7 @@ This description will be focusing on the decoder architecture, since that is wha
 ### Is Attention all You Need?
 Using the famous paper from Google Mind, [Attention Is All You Need](https://arxiv.org/pdf/1706.03762), I have created an attention model in the ways which are described in this documentation.
 
-This mode, as it currently stands, has architecture implemented for both single head and multi head attention. These can be explored in the files `src/transformer/single_head_attention.py` and `src/transformer/multi_head_attention.py` respectively. The single head attention is a remnant from the branch using NumPy, and does not use JAX or GPU-based processing. 
+This mode, as it currently stands, has architecture implemented for both single head and multi head attention. These can be explored in the files `src/transformer/single_head_attention.py` and `src/transformer/multi_head_attention.py` respectively. The single head attention is a remnant from the branch using NumPy, and does not use JAX or GPU-based processing.
 
 Multi head attention, in the way I implemented it here, uses a set of four learnable parameters called **weights**. These include:
 ```python
