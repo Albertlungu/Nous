@@ -23,6 +23,7 @@ Enjoy!
 
 >[!NOTE]
 > If you see some errors in the console (text in red), just quit the app with CMD+Q then reopen it. This usually fixes the issues.
+> Don't worry about error (400 BAD REQUEST), that won't go away, it still works.
 
 Some example prompts you can give it to see exactly hoe intelligent it is:
 > Explain what a neural network is.
