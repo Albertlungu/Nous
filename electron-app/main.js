@@ -8,9 +8,6 @@ try {
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
-const { APIConnectionError } = require('openai');
-const { create } = require('domain');
-const { transformedClearcoatNormalView } = require('three/src/nodes/TSL.js');
 
 let mainWindow;
 let pythonProcess;
@@ -38,21 +35,50 @@ function createWindow() {
 }
 
 function startPythonServer() {
-    // Start flask API server
-    const pythonPath = 'python3';
-    const scriptPath = path.join(__dirname, '..', 'api', 'server.py');
+    // Determine if running in production (packaged) or development
+    const isPackaged = app.isPackaged;
 
-    console.log(`Attempting to start python server at ${scriptPath}`)
+    let pythonPath;
+    let scriptPath;
+    let dataPath;
+
+    if (isPackaged) {
+        // Production: use bundled Python from venv
+        const resourcesPath = process.resourcesPath;
+        if (process.platform === 'win32') {
+            pythonPath = path.join(resourcesPath, 'venv', 'Scripts', 'python.exe');
+            dataPath = path.join(app.getPath('appData'), 'nous');
+        } else {
+            pythonPath = path.join(resourcesPath, 'venv', 'bin', 'python');
+            dataPath = path.join(app.getPath('appData'), 'nous');
+        }
+        scriptPath = path.join(resourcesPath, 'api', 'server.py');
+    } else {
+        // Development: use system Python and project directories
+        pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+        scriptPath = path.join(__dirname, '..', 'api', 'server.py');
+        dataPath = path.join(__dirname, '..');
+    }
+
+    console.log(`Python path: ${pythonPath}`);
+    console.log(`Script path: ${scriptPath}`);
+    console.log(`Data path: ${dataPath}`);
+    console.log(`Is packaged: ${isPackaged}`);
 
     try {
-        pythonProcess = spawn(pythonPath, [scriptPath]);
+        pythonProcess = spawn(pythonPath, [scriptPath], {
+            env: {
+                ...process.env,
+                NOUS_DATA_PATH: dataPath
+            }
+        });
 
         if (!pythonProcess) {
             console.error(`Failed to spawn python process`);
             return;
         }
 
-        pythonPath.stdout.on('data', (data) => {
+        pythonProcess.stdout.on('data', (data) => {
             console.log(`Python: ${data}`);
         });
 

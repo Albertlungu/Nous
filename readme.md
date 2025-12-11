@@ -6,16 +6,16 @@
 </p>
 
 
-# PyGPT — A Learning LLM Project
+# νοῦς (nous) — A Learning LLM Project
 
 ## Overview
-It's a GPT-like LLM that uses a plethora of sources that are visible in the `data_loader.py` file.
+νοῦς (nous, Greek for "mind/intellect") is a GPT-like LLM that uses a plethora of sources that are visible in the dataset loader.
 
 But what **makes this different?**
 
 Well, up to date, I haven't yet found a model for which I can customize literally anything with ease. Every GitHub repo that I've seen requires you to go into the depths of the model to look for `num_heads` or `embedding_dim` and read the entire 6.7k line readme file (sorta like this one).
 
-My point is that this app, PyGPT, allows you to do exactly that: configure literally any part of the model with ease through an Electron app. This means that you can use:
+My point is that this app, νοῦς, allows you to do exactly that: configure literally any part of the model with ease through an Electron app. This means that you can use:
 - Custom datasets
 - Custom tokenizers (I have a BPE Tokenizer class that you can use, but it's kinda slow, so I also use TikToken)
 - Custom number of attention heads, stacks, embedding dimension, max sequence length, epochs, batch size, learning rate, warmup steps
@@ -25,14 +25,14 @@ My point is that this app, PyGPT, allows you to do exactly that: configure liter
 ## Quickstart
 ### If on MacOS (METAL):
 ```bash
-git clone JAX https://github.com/Albertlungu/PyGPT.git
-cd PyGPT
+git clone https://github.com/Albertlungu/Nous.git
+cd Nous
 ./metal_setup.sh
 ```
 ### If on CUDA-enabled GPU:
 ```bash
-git clone JAX https://github.com/Albertlungu/PyGPT.git
-cd PyGPT
+git clone https://github.com/Albertlungu/Nous.git
+cd Nous
 ./cuda_setup.sh
 ```
 

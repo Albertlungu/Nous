@@ -1,7 +1,8 @@
 # Save as check_merges.py and run on your GPU machine
 import pickle
+from api.paths import get_tokenizer_path, get_training_data_path
 
-with open('artifacts/tokenizer/tokenizer_alpaca.pkl', 'rb') as f:
+with open(get_tokenizer_path('tokenizer_alpaca.pkl'), 'rb') as f:
     tokenizer = pickle.load(f)
 
 print(tokenizer.encode("Hello World"))
@@ -24,7 +25,7 @@ print(tokenizer.decode([32000]))
 print(tokenizer.decode([0]))
 
 
-with open('training_data/alpaca_tokenized.pkl', 'rb') as f:
+with open(get_training_data_path('alpaca_tokenized.pkl'), 'rb') as f:
     data = pickle.load(f)
 
 print(data[-1])

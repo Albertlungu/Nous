@@ -16,17 +16,23 @@ from embeddings.embeddings import EmbeddingLayer
 from src.tokenizer.tiktoken_tokenizer import TikToken
 from tokenizer.tokenizer_class import BPETokenizer
 from training.train import Trainer
+from api.paths import get_training_data_path, get_tokenizer_path, get_models_path
 
 def save_token_ids(output_path):
     """
     Save token ids to a pickled file in order to avoid 10 minutes of prep time during training.
     """
 
-    with open("artifacts/tokenizer/tokenizer_alpaca.pkl", "rb") as f:
-        tokenizer = pickle.load(f)
-        tokenizer._ensure_vocab()
+    tokenizer_path = get_tokenizer_path('tokenizer_alpaca.pkl')
+    if os.path.exists(tokenizer_path):
+        with open(tokenizer_path, "rb") as f:
+            tokenizer = pickle.load(f)
+            if hasattr(tokenizer, '_ensure_vocab'):
+                tokenizer._ensure_vocab()
+    else:
+        tokenizer = TikToken()
 
-    with open("training_data/alpaca.txt", "r") as f:
+    with open(get_training_data_path('alpaca.txt'), "r") as f:
         content = f.read()
 
     # Split by double newlines to get complete instruction-response pairs
@@ -142,7 +148,7 @@ Performance:
     plt.tight_layout()
 
     # Save the plot
-    output_path = "artifacts/training_analysis.png"
+    output_path = get_models_path('training_analysis.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"\n{'='*80}")
     print(f"Plot saved to: {output_path}")
@@ -173,7 +179,7 @@ def train():
     #     tokenizer._ensure_vocab()
 
     # Load the new tokenized dataset
-    with open("training_data/tiktoken_combined_new.pkl", "rb") as f:
+    with open(get_training_data_path('tiktoken_combined_new.pkl'), "rb") as f:
         token_ids = pickle.load(f)
 
     # with open("training_data/alpaca_tokenized.pkl", "rb") as f:
@@ -211,7 +217,7 @@ def train():
     trainer.train(
         epochs=75,
         batch_size=64,
-        checkpoint_path="artifacts/model/alpaca284.pkl",
+        checkpoint_path=get_models_path('alpaca284.pkl'),
         save_every=1,
         prompt="Instruction: List three best practices for starting a conversation.\nInput: \nOutput:"
     )
@@ -223,7 +229,7 @@ def train():
 
     # Save lightweight model-only checkpoint (no optimizer state)
     print("\nCreating lightweight checkpoint for inference...")
-    trainer.save_model_only("artifacts/model/alpaca200_model_only.pkl")
+    trainer.save_model_only(get_models_path('alpaca200_model_only.pkl'))
     print("Lightweight checkpoint saved!")
 
     # Test generation
@@ -240,7 +246,7 @@ def extend():
     print(f"Loaded TikToken tokenizer with vocab size: {tokenizer.vocab_size}")
 
     # Load token_ids to match train() function
-    with open("training_data/tiktoken_combined_new.pkl", "rb") as f:
+    with open(get_training_data_path('tiktoken_combined_new.pkl'), "rb") as f:
         token_ids = pickle.load(f)
 
     trainer = Trainer(
@@ -296,7 +302,7 @@ def main():
     )
 
     # Use latest checkpoint
-    checkpoint_path = "artifacts/models/epoch155.pkl"
+    checkpoint_path = get_models_path('epoch155.pkl')
     print(f"Loading checkpoint from: {checkpoint_path}")
 
     try:
@@ -354,7 +360,7 @@ def user_input():
         min_lr=1e-5  # Minimum learning rate floor
     )
 
-    checkpoint_path = "artifacts/models/epoch155.pkl"
+    checkpoint_path = get_models_path('epoch155.pkl')
     print("Loaded checkpoint.")
 
     try:
@@ -394,7 +400,7 @@ Or, to enter your own user input, please enter 'i':
     elif main_or_train.lower() == 'a':
         analyze_training()
     elif main_or_train.lower() == "ids":
-        save_token_ids("training_data/alpaca_tokenized.pkl")
+        save_token_ids(get_training_data_path('alpaca_tokenized.pkl'))
     else:
         user_input()
 

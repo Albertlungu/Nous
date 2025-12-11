@@ -5,6 +5,7 @@ Although you can use the custom BPE tokenizer, this is faster at the actual toke
 """
 
 import pickle
+from api.paths import get_training_data_path, get_tokenizer_path
 
 import tiktoken # pylint: disable=no-member
 from tqdm import tqdm
@@ -134,6 +135,6 @@ def test_tokenized(path:str) -> None:
 
 
 if __name__ == "__main__":
-    tokenize_data("training_data/alpaca.txt", "training_data/tiktoken_alpaca.pkl")
+    tokenize_data(get_training_data_path('alpaca.txt'), get_training_data_path('tiktoken_alpaca.pkl'))
     main()
-    test_tokenized("training_data/tiktoken_alpaca.pkl")
+    test_tokenized(get_training_data_path('tiktoken_alpaca.pkl'))

@@ -1,4 +1,4 @@
-echo "=== PyGPT Metal Setup Script ==="
+echo "=== νοῦς (nous) Metal Setup Script ==="
 echo ""
 
 echo "Installing PyEnv..."
@@ -31,7 +31,7 @@ echo ""
 echo "Setting Up Virtual Environment..."
 python -m venv venv
 source venv/bin/activate
-which python # Should return "/Users/[your_user]/[something]/PyGPT/venv/bin/python"
+which python # Should return "/Users/[your_user]/[something]/Nous/venv/bin/python"
 
 echo ""
 echo "Installing Python dependencies..."

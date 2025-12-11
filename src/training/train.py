@@ -18,6 +18,7 @@ from src.transformer.output_layer import OutputLayer
 from src.training.loss_function import CrossEntropyLoss
 from src.tokenizer.tiktoken_tokenizer import TikToken
 from src.optimizers.adam import AdamNested
+from api.paths import get_models_path
 
 
 class Trainer:
@@ -452,7 +453,7 @@ class Trainer:
 
         return timestamped_path
 
-    def train(self, epochs=10, batch_size=20, checkpoint_path="artifacts/model/training_logs.pkl", save_every=10, prompt=""):
+    def train(self, epochs=10, batch_size=20, checkpoint_path=None, save_every=10, prompt=""):
         """
         Train the model with JAX autodiff.
         Automatically saves checkpoints with timestamps.
@@ -463,6 +464,10 @@ class Trainer:
             checkpoint_path (str): Base path for checkpoints (timestamp will be added)
             save_every (int): Save checkpoint every N epochs
         """
+        # Ensure checkpoint_path uses centralized models directory when not provided
+        if checkpoint_path is None:
+            checkpoint_path = get_models_path("training_logs.pkl")
+
         # Generate timestamped checkpoint path at start of training
         timestamped_checkpoint = self._get_timestamped_checkpoint_path(checkpoint_path)
         print(f"Checkpoints will be saved to: {timestamped_checkpoint}")
@@ -575,13 +580,13 @@ class Trainer:
 
                 gc.collect()
 
-                if prompt and (epoch + 1) % 5 == 0: # Run generate every 5 epochs - avoids 100s delay every epoch.
+                    if prompt and (epoch + 1) % 5 == 0: # Run generate every 5 epochs - avoids 100s delay every epoch.
                     generated_text = self.generate(
                         prompt,
                         max_length=150,
                     )
                     print(f"Saving checkpoint at epoch {epoch +1}")
-                    self.save_checkpoint(f"artifacts/model/alpaca_epoch{epoch + 1}")
+                    self.save_checkpoint(get_models_path(f"alpaca_epoch{epoch + 1}"))
 
                     print("Prompt: \n", prompt)
                     print("Generated: ", generated_text[0])
@@ -766,7 +771,9 @@ class Trainer:
 
         return metadata
 
-    def save_checkpoint(self, path="artifacts/model/training_logs.pkl"):
+    def save_checkpoint(self, path=None):
+        if path is None:
+            path = get_models_path("training_logs.pkl")
         """Save model parameters AND optimizer state to file (for resuming training)."""
         checkpoint = {
             'embeddings': self.embedding_layer.embeddings,
@@ -794,7 +801,9 @@ class Trainer:
         with open(path, "wb") as f:
             pickle.dump(checkpoint, f)
 
-    def save_model_only(self, path="artifacts/model/model.pkl"):
+    def save_model_only(self, path=None):
+        if path is None:
+            path = get_models_path("model.pkl")
         """Save ONLY model weights (smaller file, for inference only)."""
         model_state = {
             'embeddings': self.embedding_layer.embeddings,
@@ -817,7 +826,9 @@ class Trainer:
 
         print(f"Model saved to {path} (weights only, no optimizer state)")
 
-    def save_model_npz(self, path="artifacts/model/model.npz"):
+    def save_model_npz(self, path=None):
+        if path is None:
+            path = get_models_path("model.npz")
         """Save model weights as compressed NumPy arrays (smallest file size)."""
         import numpy as np
 

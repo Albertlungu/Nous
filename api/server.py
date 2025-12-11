@@ -1,5 +1,5 @@
 """
-Flask API server for PyGPT Electron App
+Flask API server for νοῦς (nous) Electron App
 Gets REST endpoints for model inference, training, and more.
 """
 
@@ -12,6 +12,16 @@ import threading
 import random
 import pickle
 
+# Get data path from environment variable (set by Electron)
+# In development: uses project root
+# In production: uses ~/Library/Application Support/nous/
+DATA_PATH = os.getenv('NOUS_DATA_PATH', os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Create data directories if they don't exist
+os.makedirs(os.path.join(DATA_PATH, 'training_data'), exist_ok=True)
+os.makedirs(os.path.join(DATA_PATH, 'artifacts', 'models'), exist_ok=True)
+os.makedirs(os.path.join(DATA_PATH, 'artifacts', 'tokenizer'), exist_ok=True)
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from api.model_interface import ModelInterface
@@ -19,6 +29,7 @@ from api.training_interface import TrainingInterface
 from api.dataset_interface import DatasetInterface
 from api.tokenizer_interface import TokenizerInterface
 from src.tokenizer.tokenizer_class import BPETokenizer
+from api.paths import get_training_data_path, get_tokenizer_path, get_models_path
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -220,7 +231,12 @@ def train_bpe_tokenizer():
     data = request.json
     dataset_path = data.get('dataset_path')
     vocab_size = data.get('vocab_size', 5000)
-    output_path = data.get('output_path', 'artifacts/tokenizer/custom_bpe.pkl')
+    output_path = data.get('output_path')
+    if not output_path:
+        output_path = get_tokenizer_path('custom_bpe.pkl')
+    else:
+        if not os.path.isabs(output_path):
+            output_path = get_tokenizer_path(os.path.basename(output_path))
 
     try:
         tokenizer_interface.train_bpe(dataset_path, vocab_size, output_path)
@@ -272,7 +288,7 @@ def list_datasets_v2():
     """List all available datasets"""
     try:
         datasets = []
-        training_data_dir = 'training_data'
+        training_data_dir = get_training_data_path()
 
         if not os.path.exists(training_data_dir):
             return jsonify({'datasets': []})
@@ -333,8 +349,7 @@ def create_dataset_v2():
         if not output_filename:
             return jsonify({'error': 'Output filename is required'}), 400
 
-        output_path = os.path.join('training_data', output_filename)
-        os.makedirs('training_data', exist_ok=True)
+        output_path = get_training_data_path(output_filename)
 
         all_examples = []
 
@@ -418,8 +433,7 @@ def import_files():
         if not files:
             return jsonify({'error': 'No files provided'}), 400
 
-        training_data_dir = 'training_data'
-        os.makedirs(training_data_dir, exist_ok=True)
+        training_data_dir = get_training_data_path()
 
         imported_files = []
         for file in files:
@@ -431,7 +445,7 @@ def import_files():
                 return jsonify({'error': f'Invalid file type: {file.filename}. Only .txt and .pkl files are allowed.'}), 400
 
             # Save file to training_data/
-            output_path = os.path.join(training_data_dir, file.filename)
+            output_path = get_training_data_path(file.filename)
             file.save(output_path)
             imported_files.append(output_path)
 
@@ -460,7 +474,7 @@ def combine_datasets_v2():
         if not output_filename:
             return jsonify({'error': 'Output filename is required'}), 400
 
-        output_path = os.path.join('training_data', output_filename)
+        output_path = get_training_data_path(output_filename)
         all_examples = []
 
         # Read all datasets
@@ -527,7 +541,7 @@ def tokenize_dataset():
             return jsonify({'error': 'Invalid tokenizer type'}), 400
 
         # Save tokenized data
-        output_path = os.path.join('training_data', output_filename)
+        output_path = get_training_data_path(output_filename)
         with open(output_path, 'wb') as f:
             pickle.dump(token_ids, f)
 
@@ -604,6 +618,6 @@ def remove_dataset():
 
 #----------------------------------- Main ------------------------------------
 if __name__ == '__main__':
-    print("Starting PyGPT API Server...")
+    print("Starting νοῦς (nous) API Server...")
     print("Server running at http://127.0.0.1:5000")
     app.run(host='127.0.0.1', port=5000, debug=False, threaded=True)

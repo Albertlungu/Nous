@@ -16,6 +16,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.training.train import Trainer
 from src.tokenizer.tiktoken_tokenizer import TikToken
 from src.tokenizer.tokenizer_class import BPETokenizer
+from api.paths import get_models_path, get_tokenizer_path
 
 class ModelInterface:
     def __init__(self):
@@ -34,7 +35,8 @@ class ModelInterface:
         """
         List all available model checkpoints
         """
-        models = glob.glob("artifacts/models/*.pkl")
+        models_dir = get_models_path()
+        models = glob.glob(os.path.join(models_dir, "*.pkl"))
         return sorted([{
             "name": os.path.basename(m),
             "path": m,
@@ -64,12 +66,12 @@ class ModelInterface:
             if tokenizer_type == 'tiktoken':
                 self.tokenizer = TikToken()
             else:
-                tokenizer_path = "artifacts/tokenizer/tokenizer_alpaca.pkl"
+                tokenizer_path = get_tokenizer_path('tokenizer_alpaca.pkl')
                 if os.path.exists(tokenizer_path):
                     with open(tokenizer_path, "rb") as f:
                         self.tokenizer = pickle.load(f)
                         if hasattr(self.tokenizer, '_ensure_vocab'):
-                            self.tokenizer._ensure_vocab
+                            self.tokenizer._ensure_vocab()
                 else:
                     self.tokenizer = TikToken()
 

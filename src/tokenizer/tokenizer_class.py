@@ -29,6 +29,7 @@ import xml.etree.ElementTree as ET
 from tqdm import tqdm
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from api.paths import get_training_data_path, get_tokenizer_path
 
 def extract_wiki_text(xml_path, output_path):
     """
@@ -258,7 +259,7 @@ def main():
     # training_data = open("tokenizer_training_data/all_wiki_text.txt", "r").read()
 
     # Option 2: Alpaca data (cleaned)
-    training_data = clean_alpaca_text("training_data/alpaca.txt")
+    training_data = clean_alpaca_text(get_training_data_path('alpaca.txt'))
     print("Read and cleaned training data")
 
     tokens = training_data.encode("utf-8") # turns raw text (strings) into utf-8 encoded bytes stored inside tokens variable
@@ -281,7 +282,7 @@ def main():
     print("Final ids length:", len(ids))
     print(f"Compression ratio: {len(tokens[:dataset_length]) / len(ids):.2f}X")
 
-    with open("artifacts/tokenizer/tokenizer_alpaca.pkl", "wb") as f:
+    with open(get_tokenizer_path('tokenizer_alpaca.pkl'), "wb") as f:
         pickle.dump(tokenizer, f) # turning the tokenizer object into a pickle file
 
     # with open('artifacts/tokenizer.pkl', 'rb') as f:
@@ -294,7 +295,7 @@ def test_tokenizer(path):
     Args:
         path (str): path to tokenizer
     """
-    with open("artifacts/tokenizer.pkl", "rb") as f:
+    with open(get_tokenizer_path('tokenizer_alpaca.pkl'), "rb") as f:
         tokenizer = pickle.load(f)
         tokenizer._ensure_vocab()
 

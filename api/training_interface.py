@@ -12,6 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.training.train import Trainer
 from src.tokenizer.tiktoken_tokenizer import TikToken
+from api.paths import get_tokenizer_path, get_models_path
 
 class TrainingInterface:
     def __init__(self):
@@ -79,7 +80,7 @@ class TrainingInterface:
                 if tokenizer_type == 'tiktoken':
                     tokenizer = TikToken()
                 else:
-                    tokenizer_path = "artifacts/tokenizer/tokenizer_alpaca.pkl"
+                    tokenizer_path = get_tokenizer_path('tokenizer_alpaca.pkl')
                     with open(tokenizer_path, "rb") as f:
                         tokenizer = pickle.load(f)
                         if hasattr(tokenizer, '_ensure_vocab'):
@@ -175,12 +176,15 @@ class TrainingInterface:
                     self._log(f"Epoch {self.current_epoch} complete. Avg loss: {avg_loss:.4f}, LR: {self.current_lr:.8f}")
 
                     if config.get('save_checkpoints', True) and (epoch + 1) % config.get('save_every', 5) == 0:
-                        checkpoint_path = f"artifacts/models/checkpoint_epoch{epoch + 1}.pkl"
+                        checkpoint_path = get_models_path(f"checkpoint_epoch{epoch + 1}.pkl")
                         self.trainer.save_checkpoint(checkpoint_path)
                         self._log(f"Checkpoint saved at {checkpoint_path}")
 
                 if not self.stop_requested:
-                    final_path = config.get('final_model_path', 'artifacts/models/final_model.pkl')
+                    final_path = config.get('final_model_path', get_models_path('final_model.pkl'))
+                    # If user supplied a relative path, prefer storing in models dir
+                    if not os.path.isabs(final_path):
+                        final_path = get_models_path(os.path.basename(final_path))
                     self.trainer.save_checkpoint(final_path)
                     self._log(f"Training complete. Model saved: {final_path}")
 

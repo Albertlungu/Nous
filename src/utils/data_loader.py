@@ -9,6 +9,7 @@ All datasets are saved as .txt files, and must be tokenized before training usin
 """
 
 from datasets import load_dataset # pylint: disable=no-member
+from api.paths import get_training_data_path
 
 
 def save_dolly(path:str) -> None:
@@ -280,7 +281,7 @@ def combine_all_datasets(output_path:str, alpaca_path:str = None, wizardlm_path:
     """
     import os
 
-    temp_dir = "training_data/temp"
+    temp_dir = get_training_data_path('temp')
     os.makedirs(temp_dir, exist_ok=True)
 
     # Download datasets if paths not provided
@@ -335,7 +336,7 @@ def combine_all_datasets(output_path:str, alpaca_path:str = None, wizardlm_path:
 
 
 if __name__ == "__main__":
-    # save_dolly("training_data/pygpt_training_corpus.txt")
-    # save_general_knowledge("training_data/general_knowledge.txt")
-    save_alpaca("training_data/alpaca.txt")
-    # save_trivia_qa("training_data/trivia.txt")
+    # save_dolly(get_training_data_path('pygpt_training_corpus.txt'))
+    # save_general_knowledge(get_training_data_path('general_knowledge.txt'))
+    save_alpaca(get_training_data_path('alpaca.txt'))
+    # save_trivia_qa(get_training_data_path('trivia.txt'))

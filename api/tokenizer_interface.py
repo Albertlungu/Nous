@@ -10,6 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.tokenizer.tiktoken_tokenizer import TikToken
 from src.tokenizer.tokenizer_class import BPETokenizer
+from api.paths import get_tokenizer_path, get_training_data_path
 
 class TokenizerInterface:
     def __init__(self):
@@ -65,7 +66,7 @@ class TokenizerInterface:
             self.tokenizer = TikToken()
             self.current_tokenizer = 'tiktoken'
         elif tokenizer_name.lower() == 'bpe':
-            tokenizer_path = "artifacts/tokenizer/tokenizer_alpaca.pkl"
+            tokenizer_path = get_tokenizer_path('tokenizer_alpaca.pkl')
             if not os.path.exists(tokenizer_path):
                 raise Exception("BPE tokenizer not found")
             with open(tokenizer_path, "rb") as f:
@@ -132,6 +133,9 @@ class TokenizerInterface:
 
                 tokenizer.make_merges(ids, len(ids), progress_callback=update_progress)
 
+                # Normalize output path: if relative, place inside artifacts/tokenizer
+                if not os.path.isabs(output_path):
+                    output_path = get_tokenizer_path(os.path.basename(output_path))
                 os.makedirs(os.path.dirname(output_path), exist_ok=True)
                 with open(output_path, "wb") as f:
                     pickle.dump(tokenizer, f)
