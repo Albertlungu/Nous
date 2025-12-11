@@ -69,7 +69,9 @@
           "arch": ["arm64"]
         }
       ],
-      "identity": null
+      "identity": "-",
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "dmg": {
       "contents": [

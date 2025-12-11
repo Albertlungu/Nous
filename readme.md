@@ -8,6 +8,22 @@
 
 # νοῦς (nous) — A Learning LLM Project
 
+## Quickstart
+1. Download the νοῦς app
+   1. Either from GitHub
+   2. Or:
+```bash
+git clone https://github.com/Albertlungu/Nous.git
+cd Nous
+npm run build:mac
+```
+2. Now that the app is saved on your computer, it is fully self contained, meaning you can move it in and out of directories with ease.
+3. Open the app.
+Enjoy!
+
+>[!NOTE]
+> If you see some errors in the console (text in red), just quit the app with CMD+Q then reopen it. This usually fixes the issues.
+
 ## Overview
 νοῦς (nous, Greek for "mind/intellect") is a GPT-like LLM that uses a plethora of sources that are visible in the dataset loader.
 
@@ -22,7 +38,7 @@ My point is that this app, νοῦς, allows you to do exactly that: configure l
 - Basically anything you can think of you can change (except for the FFN Hidden layer, that's hardcoded to `4*embedding_dim`)
 
 
-## Quickstart
+## Quickstart (Without Download)
 ### If on MacOS (METAL):
 ```bash
 git clone https://github.com/Albertlungu/Nous.git

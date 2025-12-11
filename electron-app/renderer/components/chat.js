@@ -242,9 +242,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         messagesContainer.appendChild(messageDiv);
 
-        // Scroll the chat container
+        // Hide background logo when first message is sent
         const chatContainer = document.getElementById('chat-container');
         if (chatContainer) {
+            chatContainer.classList.add('has-messages');
+
             setTimeout(() => {
                 chatContainer.scrollTop = chatContainer.scrollHeight;
             }, 10);

@@ -46,14 +46,14 @@ function startPythonServer() {
     let logPath;
 
     if (isPackaged) {
-        // Production: use bundled Python from venv
+        // Production: use bundled Python from venv and Resources directory for data
         const resourcesPath = process.resourcesPath;
         if (process.platform === 'win32') {
             pythonPath = path.join(resourcesPath, 'venv', 'Scripts', 'python.exe');
-            dataPath = path.join(app.getPath('appData'), 'nous');
+            dataPath = resourcesPath;
         } else {
             pythonPath = path.join(resourcesPath, 'venv', 'bin', 'python');
-            dataPath = path.join(app.getPath('appData'), 'nous');
+            dataPath = resourcesPath;
         }
         scriptPath = path.join(resourcesPath, 'api', 'server.py');
         logPath = path.join(dataPath, 'nous-debug.log');
