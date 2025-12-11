@@ -24,6 +24,10 @@ Enjoy!
 >[!NOTE]
 > If you see some errors in the console (text in red), just quit the app with CMD+Q then reopen it. This usually fixes the issues.
 
+Some example prompts you can give it to see exactly hoe intelligent it is:
+> Explain what a neural network is.
+> Explain what photosynthesis is.
+
 ## Overview
 νοῦς (nous, Greek for "mind/intellect") is a GPT-like LLM that uses a plethora of sources that are visible in the dataset loader.
 
