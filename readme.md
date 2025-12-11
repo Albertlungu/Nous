@@ -8,7 +8,7 @@
 
 # νοῦς (nous) — A Learning LLM Project
 
-<div style="position: relative; width: 100%; height: 600px; margin: 40px 0; display: flex; align-items: center; justify-content:center;">
+<div style="position: relative; width: 100%; height: 600px; margin: 40px 0;">
   <img src="concepts/assets/light_mode.png" style="position: absolute; top: 0; left: 0; height: 300px; z-index: 1;">
   <img src="concepts/assets/dark_mode.png" style="position: absolute; top: 200px; left: 310px; height: 300px; z-index: 2;">
 </div>
