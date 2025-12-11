@@ -50,9 +50,8 @@ Some example prompts you can give it to see exactly how intelligent it is:
 >
 > Explain what photosynthesis is.
 
-#### How to use it:
-PyGPT already comes pre-installed with two models, `epoch155.pkl`, which just exists to have a backup, and `model.pkl`. Both of these can be found by right clicking the app and selecting `"Show Package Contents"`, then visiting `contents/resources/artifacts/models`. They have been trained for 155 total epochs, following this loss curve:
-![Image](concepts/assets/image.png)
+## User guide:
+PyGPT already comes pre-installed with two models, `epoch155.pkl`, which just exists to have a backup, and `model.pkl`. Both of these can be found by right clicking the app and selecting `"Show Package Contents"`, then visiting `contents/resources/artifacts/models`. They have been trained for 155 total epochs, with a final loss of ~0.6
 
 It is 77M parameters, which you will be able to see in the app.
 
@@ -64,14 +63,44 @@ To use the app for **generation**:
 5. Wait for it to load
 6. Go back to `Chat`, and ask away!
 
+> [!NOTE]
+> You can change inference config, such as max token length, temperature, and top_k to match what you want.
+
 To use the app for **training**:
 1. Go to `Datasets`
 2. Click on `List Datasets` to see all available datasets. If there are none, use `Create Dataset`
+   1. See more details on dataset usage below
 3. Go to `Training`
 4. Select whatever preferences you want
 5. Click on `Save Config`
 6. Press `Start Training`
 7. Sit back, take some raw popcorn kernels, put them in a pan, and put the pan on your PC. In about 5 minutes, you'll have a lovely snack and a discombobulated computer. ❤️
+
+To create a **dataset**, you can either:
+
+a) Select a preset dataset, such as Alpaca, FLAN, and more
+b) Use a dataset of your choice from HuggingFace
+c) Import a dataset from your local drive (.txt or .pkl)
+
+### Use the create datasets function
+To import a dataset from HuggingFace, you must first go to their web interface, look for the dataset you wish to use, and click `Use this dataset`. This will open a dropdown menu. Select `Datasets`. From the code it gives you, which will look something like:
+
+```python
+from datasets import load_dataset
+
+ds = load_dataset("Anthropic/AnthropicInterviewer")
+```
+
+You must copy the part inside quotations (here `Anthropic/AnthropicInterviewer`), and be sure to exclude the quotations.
+
+Then, type the split you want to use (probably going to be `train`). Keep in mind, the current code does not have the ability to have a testing dataset to check overfitting.
+
+Next, select the number of examples you want to use, and leave empty for 0 examples.
+
+Now, you must select the format in which the dataset is made. Most instruction/response based datasets on HuggingFace have columns with an instruction, the context given for the instruction, and the response or output. The column titles are different from most datasets. Because of this, you have to change what is in curly braces, e.g., `{instruction}`, to the column title for each field.
+  Optionally, you can also customize the label that shows up before the instruction, context, or response.
+
+Finally, you get to choose the name of the text file it gets outputted to!
 
 ## Quickstart (CLI)
 ### If on MacOS (METAL):
