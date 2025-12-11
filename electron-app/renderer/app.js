@@ -50,4 +50,27 @@ document.addEventListener('DOMContentLoaded', () => {
             sidebar.classList.remove('expanded');
         });
     }
+
+    // Theme toggle
+    const themeToggle = document.getElementById('theme-toggle');
+
+    // Load saved theme preference
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-theme');
+        themeToggle.textContent = '☾';
+    }
+
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('light-theme');
+            const isLight = document.body.classList.contains('light-theme');
+
+            // Update icon
+            themeToggle.textContent = isLight ? '☾' : '☀';
+
+            // Save preference
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+        });
+    }
 });
