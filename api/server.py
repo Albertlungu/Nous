@@ -32,7 +32,13 @@ from src.tokenizer.tokenizer_class import BPETokenizer
 from api.paths import get_training_data_path, get_tokenizer_path, get_models_path
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+CORS(app, resources={
+    r"/api/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
 model_interface = ModelInterface()
 training_interface = TrainingInterface()

@@ -35,12 +35,15 @@ function createWindow() {
 }
 
 function startPythonServer() {
+    const fs = require('fs');
+
     // Determine if running in production (packaged) or development
     const isPackaged = app.isPackaged;
 
     let pythonPath;
     let scriptPath;
     let dataPath;
+    let logPath;
 
     if (isPackaged) {
         // Production: use bundled Python from venv
@@ -53,17 +56,33 @@ function startPythonServer() {
             dataPath = path.join(app.getPath('appData'), 'nous');
         }
         scriptPath = path.join(resourcesPath, 'api', 'server.py');
+        logPath = path.join(dataPath, 'nous-debug.log');
     } else {
         // Development: use system Python and project directories
         pythonPath = process.platform === 'win32' ? 'python' : 'python3';
         scriptPath = path.join(__dirname, '..', 'api', 'server.py');
         dataPath = path.join(__dirname, '..');
+        logPath = path.join(dataPath, 'nous-debug.log');
     }
 
-    console.log(`Python path: ${pythonPath}`);
-    console.log(`Script path: ${scriptPath}`);
-    console.log(`Data path: ${dataPath}`);
-    console.log(`Is packaged: ${isPackaged}`);
+    // Create data directory if it doesn't exist
+    if (!fs.existsSync(dataPath)) {
+        fs.mkdirSync(dataPath, { recursive: true });
+    }
+
+    const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+    const log = (msg) => {
+        const timestamp = new Date().toISOString();
+        const logMsg = `[${timestamp}] ${msg}\n`;
+        console.log(msg);
+        logStream.write(logMsg);
+    };
+
+    log(`Python path: ${pythonPath}`);
+    log(`Script path: ${scriptPath}`);
+    log(`Data path: ${dataPath}`);
+    log(`Is packaged: ${isPackaged}`);
+    log(`Log path: ${logPath}`);
 
     try {
         pythonProcess = spawn(pythonPath, [scriptPath], {
@@ -74,27 +93,27 @@ function startPythonServer() {
         });
 
         if (!pythonProcess) {
-            console.error(`Failed to spawn python process`);
+            log(`Failed to spawn python process`);
             return;
         }
 
         pythonProcess.stdout.on('data', (data) => {
-            console.log(`Python: ${data}`);
+            log(`Python stdout: ${data}`);
         });
 
         pythonProcess.stderr.on('data', (data) => {
-            console.error(`Python Error: ${data}`);
+            log(`Python stderr: ${data}`);
         });
 
         pythonProcess.on('close', (code) => {
-            console.log(`Python process exited with code: ${code}`);
+            log(`Python process exited with code: ${code}`);
         });
 
         pythonProcess.on('error', (err) => {
-            console.error(`Failed to start Python: ${err.message}`);
+            log(`Failed to start Python: ${err.message}`);
         });
     } catch (err) {
-        console.error(`Error spawning Python: ${err.message}`);
+        log(`Error spawning Python: ${err.message}`);
     }
 }
 

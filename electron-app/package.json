@@ -81,7 +81,7 @@
           "x": 410,
           "y": 220,
           "type": "link",
-          "path": "/Applications"
+          "path": "~/Applications"
         }
       ]
     },
