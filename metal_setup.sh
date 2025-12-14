@@ -11,18 +11,18 @@ pyenv install 3.10
 pyenv local 3.10
 
 # Run this to add the setup code to both ~/.zshrc and ~/.zprofile
-echo "Configuring shell environment..."
-cat << 'EOF' >> ~/.zshrc
+grep -qxF 'export PYENV_ROOT="$HOME/.pyenv"' ~/.zshrc || cat << 'EOF' >> ~/.zshrc
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init - zsh)"
 EOF
 
-cat << 'EOF' >> ~/.zprofile
+grep -qxF 'export PYENV_ROOT="$HOME/.pyenv"' ~/.zprofile || cat << 'EOF' >> ~/.zprofile
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init - zsh)"
 EOF
+
 
 pyenv shell 3.10
 python --version # Should return Python 3.10.x
