@@ -58,19 +58,16 @@ cd electron-app
 npm install
 cd ..
 
-echo ""
-echo "=== Setup Complete! ==="
-echo ""
-echo "To start the app:"
-echo "  1. In one terminal, start the Flask server:"
-echo "     source venv/bin/activate"
-echo "     python api/server.py"
-echo ""
-echo "  2. In another terminal, start the Electron app:"
-echo "     cd electron-app"
-echo "     npm start"
-echo ""
-echo "Or use the convenience script:"
-echo "     ./start_app.sh"
+cat << EOF
+To start the app:
+  1. In one terminal, start the Flask server:
+     source venv/bin/activate
+     python api/server.py
 
-echo "This application has been made by Albert Lungu. Enjoy!
+  2. In another terminal, start the Electron app:
+     cd electron-app
+     npm start
+
+Or use the convenience script:
+     ./start_app.sh
+EOF
