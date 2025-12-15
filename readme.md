@@ -39,6 +39,24 @@ npm run build:mac
 3. Open the app.
 Enjoy!
 
+>[!NOTE]
+>If there's errors with the downloaded .app file, please feel free to contact me, I am open to comments and improvements.
+>But momentarily, just follow the instructions on launching the electron app manually, which I have also placed below:
+```bash
+git clone https://github.com/Albertlungu/Nous.git
+cd Nous
+./metal_setup.sh
+```
+In one terminal window, run:
+```bash
+python api/server.py
+```
+Then in another:
+```bash
+cd electron-app
+npm start
+```
+
 **To see more details, visit the user guide below.**
 
 >[!NOTE]
