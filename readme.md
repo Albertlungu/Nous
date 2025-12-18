@@ -51,7 +51,7 @@ In one terminal window, run:
 ```bash
 python api/server.py
 ```
-Then in another:
+Then open a new window, and run:
 ```bash
 cd electron-app
 npm start
