@@ -33,6 +33,7 @@ My point is that this app, νοῦς, allows you to do exactly that: configure l
 ```bash
 git clone https://github.com/Albertlungu/Nous.git
 cd Nous
+cd electron-app
 npm run build:mac
 ```
 2. Now that the app is saved on your computer, it is fully self contained, meaning you can move it in and out of directories with ease.
