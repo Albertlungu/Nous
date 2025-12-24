@@ -11,14 +11,13 @@ import jax # pylint: disable=no-member
 import jax.numpy as jnp # pylint: disable=no-member
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from src.embeddings.embeddings import EmbeddingLayer
 
 class MOE:
     """
     Mixture of Experts implementation
     """
 
-    def __init__(self, embedding_layer: EmbeddingLayer, ff_dim=None, num_experts=16, experts_per_token=2,
+    def __init__(self, embedding_dim=256, ff_dim=None, num_experts=16, experts_per_token=2,
                 num_blocks=2, scale=0.02, dropout=0.0, activation="gelu")-> None:
         """
         Initialization of MoE layer
@@ -34,7 +33,7 @@ class MOE:
             activation (str, optional): Type of dropout. Defaults to "gelu".
         """
 
-        self.embedding_dim = embedding_layer.embedding_dim
+        self.embedding_dim = embedding_dim
         self.ff_dim = ff_dim if ff_dim is not None else 4 * self.embedding_dim
         self.num_experts = num_experts
         self.ept = experts_per_token
@@ -59,23 +58,55 @@ class MOE:
             self.experts.append(expert)
 
 
-def _init_expert(self, key:int) -> dict:
-    """
-    Create a single expert. Each expert is an entire FFN.
+    def _init_expert(self, key:int) -> dict:
+        """
+        Create a single expert. Each expert is an entire FFN.
 
-    Args:
-        key (int): PRNG key used
+        Args:
+            key (int): PRNG key used
 
-    Returns:
-        dict: Contains W1, B1, W2, and B2 (weights and biases for both base and residual layers)
-    """
-    k1, k2 = jax.random.split(key)
+        Returns:
+            dict: Contains W1, B1, W2, and B2 (weights and biases for both base and residual layers)
+        """
+        k1, k2 = jax.random.split(key)
 
-    residual_scale = self.scale / jnp.sqrt(2.0 * self.num_blocks)
+        residual_scale = self.scale / jnp.sqrt(2.0 * self.num_blocks)
 
-    return {
-        'W1': jax.random.normal(k1, (self.embedding_dim, self.ff_dim)) * self.scale,
-        'B1': jnp.zeros(self.ff_dim),
-        'W2': jax.random.normal(k2, (self.ff_dim, self.embedding_dim)) * self.residual_scale,
-        'B2': jnp.zeros(self.embedding_dim)
-    }
+        return {
+            'W1': jax.random.normal(k1, (self.embedding_dim, self.ff_dim)) * self.scale,
+            'B1': jnp.zeros(self.ff_dim),
+            'W2': jax.random.normal(k2, (self.ff_dim, self.embedding_dim)) * residual_scale,
+            'B2': jnp.zeros(self.embedding_dim)
+        }
+
+    def get_params(self):
+        """
+        Gets the parameters for each expert and returns as a dictionary
+
+        Returns:
+            dict:
+                - router_W: Points to router weights
+                - router_B: Points to router biases
+                - expert_{i}_X: Points to W1, B1, W2, and B2
+                    (weights and biases for both base and residual layers) for all experts
+        """
+        params = {
+            'router_W': self.router_W,
+            'router_B': self.router_B
+        }
+
+        for i, expert in enumerate(self.experts):
+            params[f'expert_{i}_W1'] = expert['W1']
+            params[f'expert_{i}_B1'] = expert['B1']
+            params[f'expert_{i}_W2'] = expert['W2']
+            params[f'expert_{i}_B2'] = expert['B2']
+
+        return params
+
+def main():
+    # moe = MOE()
+    # print(moe.get_params())
+    pass
+
+if __name__ == "__main__":
+    main()
