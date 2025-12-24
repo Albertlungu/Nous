@@ -5,6 +5,9 @@ This file contains the TransformerStack class, which is used to stack multiple t
     on top of one another.
 """
 
+import jax
+import jax.numpy as jnp
+
 from src.transformer.transformer_block import TransformerBlock
 from src.embeddings.embeddings import EmbeddingLayer
 
@@ -22,7 +25,12 @@ class TransformerStack:
         embedding_dim (int): Dimension of embeddings
         num_heads (int): Number of attention heads per block
       """
-    def __init__(self, embedding_layer: EmbeddingLayer, num_blocks=8, num_heads=8, dropout=0.0):
+    def __init__(self,
+                embedding_layer:EmbeddingLayer,
+                num_blocks=8,
+                num_heads=8,
+                dropout=0.0
+                ) -> None:
         """
         Initialize stack of transformer blocks.
 
@@ -43,7 +51,7 @@ class TransformerStack:
             for _ in range(num_blocks)
         ]
 
-    def fwd(self, x):
+    def fwd(self, x:jnp.ndarray) -> jnp.ndarray:
         """
         Forward pass through all stacked blocks
 
@@ -63,7 +71,10 @@ class TransformerStack:
             )
         return output
 
-    def compute_grads(self, x, d_output):
+    def compute_grads(self,
+                      x:jnp.ndarray,
+                      d_output:jnp.ndarray
+                      ) -> list[dict]:
         """
         Backpropagate through all blocks to compute gradients.
 
@@ -74,7 +85,9 @@ class TransformerStack:
             d_output (jnp.ndarray): Gradient from loss
 
         Returns:
-            list: List of gradient dicts, one per block
+            list:
+                dict:
+                    Contains gradients
         """
         activations = [x]
         current = x
@@ -99,7 +112,7 @@ class TransformerStack:
 
         return all_grads
 
-    def get_params_and_grads(self, all_grads=None):
+    def get_params_and_grads(self, all_grads=None) -> list:
         """
         Collect parameters and gradients from all blocks.
 

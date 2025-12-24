@@ -48,17 +48,20 @@ class TransformerBlock:
         attention_output: Output from the attention layer.
     """
 
-    def __init__(self, embedding_layer: EmbeddingLayer, num_heads = 8, num_blocks=1, dropout=0.0):
+    def __init__(self,
+                embedding_layer:EmbeddingLayer,
+                num_heads=8,
+                num_blocks=8,
+                dropout=0.0
+                ) -> None:
         """
         Initializing instance variables for the TransformerBlock class
 
         Args:
-            token_ids (list): IDs of input tokens given to model
-                (padding is already applied in FeedForward layer)
-            embedding_layer (EmbeddingLayer): EmbeddingLayer class. Takes no arguments
-
-        Returns:
-            _type_: _description_
+            embedding_layer (EmbeddingLayer): EmbeddingLayer class, which takes no arguments.
+            num_heads (int, optional): Number of attention heads. Defaults to 8.
+            num_blocks (int, optional): Number of transformer blocks (depth). Defaults to 8.
+            dropout (float, optional): Dropout probability. Defaults to 0.0.
         """
 
         self.embedding_dim = embedding_layer.embedding_dim
@@ -73,7 +76,11 @@ class TransformerBlock:
         self.beta_2 = jnp.zeros((self.embedding_dim,))
 
     @staticmethod
-    def layer_norm(x, gamma, beta, epsilon = 1e-5):
+    def layer_norm(x:jnp.ndarray,
+                   gamma:jnp.ndarray,
+                   beta:jnp.ndarray,
+                   epsilon=1e-5
+                   ) -> jnp.ndarray:
         """
         Layer normalization - normalizes across the feature dimension.
 
@@ -104,7 +111,8 @@ class TransformerBlock:
             embedding_dim:int,
             dropout=0.0,
             training=True,
-            rng_key=None):
+            rng_key=None
+            ) -> jnp.ndarray:
         """
         Forward pass through transformer block (pure function for JIT).
 
@@ -176,7 +184,13 @@ class TransformerBlock:
 
     @staticmethod
     @jax.jit
-    def fwd_with_cache(params, x, num_heads, head_dim, embedding_dim, past_kv=None):
+    def fwd_with_cache(params:dict,
+                       x:jnp.ndarray,
+                       num_heads:int,
+                       head_dim:int,
+                       embedding_dim:int,
+                       past_kv=None
+                       ) -> tuple[jnp.ndarray, jnp.ndarray]:
         """
         Forward pass with KV-cache
 
@@ -190,8 +204,9 @@ class TransformerBlock:
                 Defaults to None.
 
         Returns:
-            output: (batch, 1, embedding_dim)
-            new_kv: Updated (K, V) cache
+            tuple:
+                output (jnp.ndarray): (batch, 1, embedding_dim)
+                new_kv (jnp.ndarray): Updated (K, V) cache
         """
         res1 = x
         ln1_out = TransformerBlock.layer_norm(x, params['gamma_1'], params['beta_1'])
@@ -214,7 +229,7 @@ class TransformerBlock:
 
         return final_out, new_kv
 
-    def get_params(self):
+    def get_params(self) -> dict:
         """
         Get all parameters as a dictionary for JAX functions
 
@@ -235,7 +250,10 @@ class TransformerBlock:
             'beta_2': self.beta_2
         }
 
-    def compute_grads(self, x, d_output):
+    def compute_grads(self,
+                      x:jnp.ndarray,
+                      d_output:jnp.ndarray
+                      ) -> tuple[dict, jnp.ndarray]:
         """
         Compute gradients using JAX autodiff
 
@@ -244,9 +262,9 @@ class TransformerBlock:
             d_output (jnp.ndarray): Gradient from next layer/transformer block
 
         Returns:
-            tuple: (grads_dict, d_input)
-                - grads_dict: Gradients for all parameters
-                - d_input: Gradient w.r.t (for previous block)
+            tuple:
+                - grads_dict (dict): Gradients for all parameters
+                - d_input (jnp.ndarray): Gradient w.r.t (for previous block)
         """
         params = self.get_params()
 
@@ -262,7 +280,7 @@ class TransformerBlock:
         grads_params, d_input = vjp_fn(d_output)
         return grads_params, d_input
 
-    def get_params_and_grads(self, grads=None):
+    def get_params_and_grads(self, grads=None) -> list[dict]:
         """
         Return params and grads in Trainer format
 
@@ -270,7 +288,9 @@ class TransformerBlock:
             grads (dict, optional): Gradient dictionary. Defaults to None.
 
         Returns:
-            list: List of {'value': param, 'grad': grad} dicts
+            list:
+                dict:
+                    - Grads
         """
 
         if grads is None:

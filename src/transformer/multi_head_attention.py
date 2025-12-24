@@ -40,7 +40,11 @@ class MultiHeadAttention:
           W_O (jnp.ndarray): Output projection matrix, shape (embedding_dim, embedding_dim)
 
       """
-    def __init__(self, embedding_layer: EmbeddingLayer, num_heads=8, num_blocks=1, dropout=0.0):
+    def __init__(self,
+                embedding_layer: EmbeddingLayer,
+                num_heads=8,
+                num_blocks=1,
+                dropout=0.0) -> None:
         """
         Initializing MutliHeadAttention
 
@@ -75,7 +79,7 @@ class MultiHeadAttention:
             embedding_dim:int,
             dropout=0.0,
             training=True,
-            rng_key=None):
+            rng_key=None) -> jnp.ndarray:
         """
         Pure function for jit computation
 
@@ -143,7 +147,8 @@ class MultiHeadAttention:
                        num_heads:int,
                        head_dim:int,
                        embedding_dim:int,
-                       past_kv=None):
+                       past_kv=None
+                       ) -> tuple[jnp.ndarray, tuple[jnp.ndarray, jnp.ndarray]]:
         """
         Fwd pass with KV cache for faster generation
 
@@ -211,17 +216,18 @@ class MultiHeadAttention:
         return out, (K, V)
 
 
-    def compute_grads(self, x, d_output):
+    def compute_grads(self, x:jnp.ndarray, d_output:jnp.ndarray) -> tuple[dict, jnp.ndarray]:
         """
         Most efficient version of backprop using JAX's vjp
 
         Args:
-            x (jnp.array): input (batch, seq_len, embedding_dim)
-            d_output (jnp.array): gradient from next layer (batch, seq_len, embedding_dim)
+            x (jnp.ndarray): input (batch, seq_len, embedding_dim)
+            d_output (jnp.ndarray): gradient from next layer (batch, seq_len, embedding_dim)
 
         Returns:
-            grads: dict of parameter gradients
-            d_input: gradient w.r.t input
+            tuple:
+                - grads: dict of parameter gradients
+                - d_input (jnp.ndarray): gradient w.r.t input
         """
         params = self.get_params()
         output, vjp_fn = jax.vjp(
@@ -229,7 +235,7 @@ class MultiHeadAttention:
         grads_params, d_input = vjp_fn(d_output)
         return grads_params, d_input
 
-    def get_params_and_grads(self, grads = None):
+    def get_params_and_grads(self, grads=None) -> list[dict]:
         """
         Return params and grads in the format Trainer expects.
 
@@ -237,7 +243,9 @@ class MultiHeadAttention:
             grads (dict, optional): Dictionary of gradients. Defaults to None.
 
         Returns:
-            list of dicts with 'value' and 'grad' keys
+            list:
+                - dict:
+                    - 'value' and 'grad' keys
         """
         if grads is None:
             grads = {
@@ -253,7 +261,7 @@ class MultiHeadAttention:
             {'value': self.W_O, 'grad': grads['W_O']},
         ]
 
-    def get_params(self):
+    def get_params(self) -> dict:
         """
         Gets attention layer parameters
 

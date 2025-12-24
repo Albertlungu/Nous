@@ -37,7 +37,7 @@ class OutputLayer:
         W_out (jnp.array[int, int]): Weight matrix, based on embedding_dim and vocab_size
         b_out (jnp.array[int]): Bias vector, shape: (vocab_size)
     """
-    def __init__(self, embedding_layer: EmbeddingLayer):
+    def __init__(self, embedding_layer: EmbeddingLayer) -> None:
         """
         Initializes instance attributes for OutputLayer class.
 
@@ -53,15 +53,18 @@ class OutputLayer:
         self.b_out = jnp.zeros(self.vocab_size) # Bias vector
 
     @staticmethod
-    def fwd(params, transformer_output):
+    def fwd(params:dict,
+            transformer_output:jnp.ndarray
+            ) -> jnp.ndarray:
         """
 
         Args:
-            transformer_output (3D Tensor): Output from last transformer block
+            params (dict)
+            transformer_output (jnp.ndarray): Output from last transformer block
                 Shape: (batch_size, seq_len, embedding_dim)
 
         Returns:
-            3D Tensor: Logits over vocabulary,
+            jnp.ndarray: Logits over vocabulary,
                 Shape: (batch_size, seq_len, vocab_size)
         """
         logits = transformer_output @ params['W_out']  + params['b_out']
@@ -80,7 +83,10 @@ class OutputLayer:
             'b_out': self.b_out
         }
 
-    def compute_grads(self, transformer_output, d_output):
+    def compute_grads(self,
+                    transformer_output:jnp.ndarray,
+                    d_output:jnp.ndarray
+                    ) -> tuple[dict, jnp.ndarray]:
         """
         Backward function
 
@@ -92,8 +98,8 @@ class OutputLayer:
 
         Returns:
             tuple:
-                - grads_params (dict[str, jnp.array]): Gradients w.r.t. output layer parameters
-                - d_input (jnp.array): Gradient w.r.t. transformer_output, same shape as input
+                - grads_params (dict[str, jnp.ndarray]): Gradients w.r.t. output layer parameters
+                - d_input (jnp.ndarray): Gradient w.r.t. transformer_output, same shape as input
         """
         params = self.get_params()
         output, vjp_fn = jax.vjp(
@@ -104,14 +110,15 @@ class OutputLayer:
         grads_params, d_input = vjp_fn(d_output)
         return grads_params, d_input
 
-    def get_params_and_grads(self):
+    def get_params_and_grads(self) -> list[dict]:
         """
         Returns parameters and gradients of OutputLayer
 
         Returns:
-            dict:
-                - W_out (jnp.array): Updated weight matrix
-                - b_out (jnp.array): Updated bias vector
+            list:
+                dict:
+                    - W_out (jnp.array): Updated weight matrix
+                    - b_out (jnp.array): Updated bias vector
         """
         if grads is None:
             grads = {
@@ -124,18 +131,21 @@ class OutputLayer:
             {'value': self.b_out, 'grad': grads['b_out']}
         ]
 
-    def predict_next_token(self, transformer_output, temperature = 1.0):
+    def predict_next_token(self,
+                           transformer_output:jnp.ndarray,
+                           temperature=1.0
+                           ) -> jnp.ndarray:
         """
         Samples the next token from the model's predictions.
 
         Args:
-            transformer_output (np.ndarray): Output from last TransformerBlock
+            transformer_output (jnp.ndarray): Output from last TransformerBlock
                                             shape: (batch_size, seq_len, embedding_dim)
-            temperature (float): Sampling temperature (default 1.0)
+            temperature (float16): Sampling temperature (default 1.0)
                                 Higher = more random, Lower = more deterministic
 
         Returns:
-            np.ndarray: Predicted token IDs
+            jnp.ndarray: Predicted token IDs
                         shape: (batch_size,) - one prediction per sequence
         """
         params = self.get_params()

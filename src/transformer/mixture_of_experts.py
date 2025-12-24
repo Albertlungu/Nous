@@ -17,8 +17,16 @@ class MOE:
     Mixture of Experts implementation
     """
 
-    def __init__(self, embedding_dim=256, ff_dim=None, num_experts=16, experts_per_token=2,
-                num_blocks=2, scale=0.02, dropout=0.0, activation="gelu")-> None:
+    def __init__(self,
+                embedding_dim=256,
+                ff_dim=None,
+                num_experts=16,
+                experts_per_token=2,
+                num_blocks=2,
+                scale=0.02,
+                dropout=0.0,
+                activation="gelu"
+                ) -> None:
         """
         Initialization of MoE layer
 
@@ -79,7 +87,7 @@ class MOE:
             'B2': jnp.zeros(self.embedding_dim)
         }
 
-    def get_params(self):
+    def get_params(self) -> dict:
         """
         Gets the parameters for each expert and returns as a dictionary
 
@@ -103,7 +111,7 @@ class MOE:
 
         return params
 
-def main():
+def main() -> None:
     # moe = MOE()
     # print(moe.get_params())
     pass

@@ -37,7 +37,7 @@ class FeedForward():
     """
 
 
-    def __init__(self, embeddings: EmbeddingLayer, ff_dim = 0, num_blocks=1, dropout=0.0):
+    def __init__(self, embeddings: EmbeddingLayer, ff_dim = 0, num_blocks=1, dropout=0.0) -> None:
         """
         Initializes the FeedForward network.
 
@@ -80,32 +80,32 @@ class FeedForward():
         self.B2 = jnp.zeros(self.embedding_dim) # Bias second layer
 
     @staticmethod
-    def GELU(x):
+    def GELU(x) -> jnp.ndarray:
         """
         GELU activation function
 
         Args:
-            x (array): array of vectors to go through activation function (3D matrix)
+            x (jnp.ndarray): array of vectors to go through activation function (3D matrix)
 
         Returns:
-            array: activated layer from hidden layer
+            jnp.ndarray: activated layer from hidden layer
         """
         return 0.5 * x * (1+jnp.tanh(jnp.sqrt(2/jnp.pi) * (x + 0.044715 * x**3)))
 
     @staticmethod
-    def ReLU(x):
+    def ReLU(x) -> jnp.ndarray:
         """Basically GELU but simpler
 
         Args:
-            x (array): array of vectors to go through activation function (3D matrix)
+            x (jnp.ndarray): array of vectors to go through activation function (3D matrix)
 
         Returns:
-            array: activated layer from hidden layer
+            jnp.ndarray: activated layer from hidden layer
         """
         return jnp.maximum(0, x)
 
     @staticmethod
-    def fwd(params, x, dropout=0.0, training=True, rng_key=None):
+    def fwd(params, x, dropout=0.0, training=True, rng_key=None) -> jnp.ndarray:
         """
         Static forward pass for use in JAX autodiff (called from TransformerBlock.fwd).
 
@@ -128,7 +128,7 @@ class FeedForward():
         return output
 
     @jax.jit
-    def fwd_instance(self, x):
+    def fwd_instance(self, x) -> jnp.ndarray:
         """
         Performs the forward pass of the feed-forward network.
 
@@ -143,7 +143,7 @@ class FeedForward():
         output = activated @ self.W2 + self.B2
         return output
 
-    def compute_grads(self, x, target_ids):
+    def compute_grads(self, x, target_ids) -> dict:
         """
         Computes gradients of the mean squared error loss w.r.t. the weights and biases.
 
@@ -169,7 +169,7 @@ class FeedForward():
             'dB2': grads[3]
         }
 
-    def get_params_and_grads(self, grads):
+    def get_params_and_grads(self, grads) -> list[dict]:
         """
         Getting parameters and gradients for feedforward network
 
@@ -178,7 +178,7 @@ class FeedForward():
 
         Returns:
             list:
-                dict
+                dict: Contains values and gradients of W1, B1, W2, and B2.
         """
         return [
             {'value': self.W1, 'grad': grads['dW1']},
