@@ -129,6 +129,7 @@ class TransformerBlock:
 
         return output
 
+    @jax.jit
     @staticmethod
     def fwd(params:dict,
             x:jnp.ndarray,
@@ -208,7 +209,7 @@ class TransformerBlock:
         )
 
         if 'moe' in params:
-            ff_output, aux_loss = MOE.fdw(
+            ff_output, aux_loss = MOE.fwd(
                 params['moe'],
                 ln2_out,
                 num_experts=num_experts,
