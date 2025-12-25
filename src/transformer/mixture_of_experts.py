@@ -44,7 +44,7 @@ class MOE:
         self.embedding_dim = embedding_dim
         self.ff_dim = ff_dim if ff_dim is not None else 4 * self.embedding_dim
         self.num_experts = num_experts
-        self.ept = experts_per_token
+        self.experts_per_token = experts_per_token
         self.num_blocks = num_blocks
         self.scale = scale
         self.dropout = dropout
