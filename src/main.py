@@ -179,7 +179,7 @@ def train():
     #     tokenizer._ensure_vocab()
 
     # Load the new tokenized dataset
-    with open(get_training_data_path('tiktoken_combined_new.pkl'), "rb") as f:
+    with open('training_data/alpaca_tokenized.pkl', "rb") as f:
         token_ids = pickle.load(f)
 
     # with open("training_data/alpaca_tokenized.pkl", "rb") as f:
@@ -192,15 +192,19 @@ def train():
     trainer = Trainer(
         tokenizer=tokenizer,
         token_ids=token_ids,
-        lr=1.1e-3,  # Base learning rate
+        lr=1.2e-3,
         num_blocks=8,
         num_heads=8,
-        embedding_dim=512,  # Must be divisible by num_heads
-        max_seq_length=256,  # Covers 95% of examples (most are under 200 tokens)
+        embedding_dim=512,
+        max_seq_length=256,
+        use_moe=True,
+        num_experts=8,
+        experts_per_token=2,
         dropout=0.0,
-        use_lr_schedule=True,  # Enable warmup + cosine decay
-        warmup_steps=500,  # Warmup for first 500 steps
-        min_lr=5e-6  # Minimum learning rate floor
+        use_lr_schedule=True,
+        warmup_steps=500,
+        min_lr=5e-6,
+        load_balance_coef=0.01
     )
 
 
@@ -257,10 +261,14 @@ def extend():
         num_heads=8,   # Must match checkpoint!
         embedding_dim=512,  # Must match checkpoint!
         max_seq_length=256,
+        use_moe=True,
+        num_experts=8,
+        experts_per_token=2,
         dropout=0.0,
         use_lr_schedule=True,
         warmup_steps=500,
-        min_lr=5e-6
+        min_lr=5e-6,
+        load_balance_coef=0.01
     )
 
     trainer.extend_training(
@@ -289,16 +297,19 @@ def main():
     # Create trainer with same architecture as checkpoint
     trainer = Trainer(
         tokenizer=tokenizer,
-        # token_ids=token_ids,
-        lr=6e-4,  # Slightly higher base LR with schedule
+        lr=1.2e-3,  # Base learning rate
         num_blocks=8,  # Must match checkpoint!
         num_heads=8,   # Must match checkpoint!
         embedding_dim=512,  # Must match checkpoint!
-        max_seq_length=256,  # Chunk long sequences to avoid memory issues
+        max_seq_length=256,
+        use_moe=True,
+        num_experts=8,
+        experts_per_token=2,
         dropout=0.0,
-        use_lr_schedule=True,  # Enable warmup + cosine decay
-        warmup_steps=500,  # Warmup for first 500 steps
-        min_lr=1e-5  # Minimum learning rate floor
+        use_lr_schedule=True,
+        warmup_steps=500,
+        min_lr=5e-6,
+        load_balance_coef=0.01
     )
 
     # Use latest checkpoint

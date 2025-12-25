@@ -220,6 +220,7 @@ class Trainer:
             head_dim_local = head_dim
             embedding_dim_local = embedding_dim
 
+            total_aux_loss = 0.0
             for i in range(len(stack_params)):
                 block_params = stack_params[i]
                 current, aux_loss = TransformerBlock.fwd(
@@ -438,10 +439,13 @@ class Trainer:
             block.attention_layer.W_V = block_params['attn']['W_V']
             block.attention_layer.W_O = block_params['attn']['W_O']
             # Update FFN
-            block.ffn.W1 = block_params['ffn']['W1']
-            block.ffn.B1 = block_params['ffn']['B1']
-            block.ffn.W2 = block_params['ffn']['W2']
-            block.ffn.B2 = block_params['ffn']['B2']
+            if 'moe' in block_params:
+                block.moe.set_params(block_params['moe'])
+            else:
+                block.ffn.W1 = block_params['ffn']['W1']
+                block.ffn.B1 = block_params['ffn']['B1']
+                block.ffn.W2 = block_params['ffn']['W2']
+                block.ffn.B2 = block_params['ffn']['B2']
             # Update LayerNorm
             block.gamma_1 = block_params['gamma_1']
             block.beta_1 = block_params['beta_1']
@@ -740,11 +744,14 @@ class Trainer:
             param_counts['attention'] += block.attention_layer.W_V.size
             param_counts['attention'] += block.attention_layer.W_O.size
 
+            if block.use_moe:
+                param_counts['feedforward'] += block.moe.count_params()
+            else:
             # Feedforward parameters
-            param_counts['feedforward'] += block.ffn.W1.size
-            param_counts['feedforward'] += block.ffn.B1.size
-            param_counts['feedforward'] += block.ffn.W2.size
-            param_counts['feedforward'] += block.ffn.B2.size
+                param_counts['feedforward'] += block.ffn.W1.size
+                param_counts['feedforward'] += block.ffn.B1.size
+                param_counts['feedforward'] += block.ffn.W2.size
+                param_counts['feedforward'] += block.ffn.B2.size
 
             # Layer normalization parameters
             param_counts['layer_norm'] += block.gamma_1.size
@@ -782,7 +789,13 @@ class Trainer:
         print(f"Max Sequence Length:  {self.embedding_layer.max_seq_length}")
         print(f"Number of Blocks:     {self.num_blocks}")
         print(f"Number of Heads:      {self.num_heads}")
-        print(f"FFN Hidden Dimension: {self.transformer_stack.blocks[0].ffn.ff_dim}")
+        if self.use_moe:
+            print(f"MoE Configuration:")
+            print(f" - Experts:       {self.num_experts}")
+            print(f" - Experts/Token: {self.experts_per_token}")
+            print(f" - Expert Hidden: {self.transformer_stack.blocks[0].moe.ff_dim}")
+        else:
+            print(f"FFN Hidden Dimension: {self.transformer_stack.blocks[0].ffn.ff_dim}")
         print("="*60)
         print("PARAMETER COUNTS")
         print("="*60)
