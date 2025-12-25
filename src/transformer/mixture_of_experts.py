@@ -196,7 +196,7 @@ class MOE:
             training=False,
             dropout=0.0,
             key=None
-            ) -> tuple[jnp.ndarray, tentative]:
+            ) -> tuple[jnp.ndarray, float]:
         """
         Forward pass through full MoE layer.
 
@@ -213,7 +213,7 @@ class MOE:
         Returns:
             tuple
                 - output (jnp.ndarray): MoE output (batch, seq_len, embedding_dim)
-                - aux_loss (tentative): Load balancing auxiliary loss
+                - aux_loss (jnp.float16): Load balancing auxiliary loss
         """
 
         batch_size, seq_len, embedding_dim = x.shape
@@ -282,7 +282,7 @@ class MOE:
                     x:jnp.ndarray,
                     training=False,
                     key=None
-                    ) -> tuple[jnp.ndarray, tentative]:
+                    ) -> tuple[jnp.ndarray, float]:
         """
         Instance method fwd pass (calls the static fwd() method)
         Args:
@@ -293,7 +293,7 @@ class MOE:
         Returns:
             tuple:
                 - output (jnp.ndarray): MoE output (batch, seq_len, embedding_dim)
-                - aux_loss (tentative): Load balancing auxiliary loss
+                - aux_loss (jnp.float16): Load balancing auxiliary loss
         """
         params = self.get_params()
         return self.fwd(
@@ -307,7 +307,7 @@ class MOE:
             key=key
         )
 
-    def count_params(self):
+    def count_params(self) -> int:
         """
         Count total number of params in MoE layer
 
