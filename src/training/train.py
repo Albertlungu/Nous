@@ -1,16 +1,37 @@
+"""
+JAX-based trainer for transformer language model with stacked blocks.
+
+Key features:
+- Multiple stacked transformer blocks for deeper architecture
+- JAX autodiff for automatic gradient computation
+- JIT compilation for faster training
+- Multi-head attention (8 heads per block)
+
+Architecture:
+    Embeddings → TransformerStack → OutputLayer → Loss
+
+
+src/training/train.py
+"""
+
 import os
+import sys
+import gc
+import time as t
+import pickle
+import functools
+from datetime import datetime
+
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+)
+
 import numpy as np
 import jax
 import jax.numpy as jnp
 import jax.tree_util as tree
-import sys
 from tqdm import tqdm
-import time as t
-import gc
-import functools
-from datetime import datetime
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-import pickle
+
 from src.embeddings.embeddings import EmbeddingLayer
 from src.transformer.transformer_stack import TransformerStack
 from src.transformer.transformer_block import TransformerBlock
@@ -18,6 +39,7 @@ from src.transformer.output_layer import OutputLayer
 from src.training.loss_function import CrossEntropyLoss
 from src.tokenizer.tiktoken_tokenizer import TikToken
 from src.optimizers.adam import AdamNested
+from src.transformer.mixture_of_experts import MOE
 from api.paths import get_models_path
 
 
@@ -32,25 +54,50 @@ class Trainer:
     - Multi-head attention (8 heads per block)
 
     Architecture:
-        Embeddings → TransformerStack (4-6 blocks) → OutputLayer → Loss
+        Embeddings → TransformerStack → OutputLayer → Loss
     """
 
-    def __init__(self, tokenizer, training_data=None, token_ids=None, lr=1e-4, num_blocks=4, num_heads=8, embedding_dim=256, max_seq_length=256, use_lr_schedule=True, warmup_steps=500, dropout=0.0, min_lr=0.0):
+    def __init__(self,
+                tokenizer,
+                training_data=None,
+                token_ids=None,
+                lr=1e-4,
+                num_blocks=8,
+                num_heads=8,
+                embedding_dim=512,
+                max_seq_length=256,
+                use_moe=True,
+                num_experts=8,
+                experts_per_token=2,
+                use_lr_schedule=True,
+                warmup_steps=500,
+                dropout=0.0,
+                min_lr=0.0,
+                load_balance_coef=0.01
+                ) -> None:
         """
         Initialize Trainer with model architecture.
 
         Args:
-            tokenizer: Tokenizer instance (TikToken or BPETokenizer)
-            training_data (list): List of text strings for training (default: None)
-            lr (float): Learning rate (default: 1e-4)
-            num_blocks (int): Number of transformer blocks to stack (default: 4)
-            num_heads (int): Number of attention heads per block (default: 8)
-            embedding_dim (int): Embedding dimension (default: 256, must be divisible by num_heads)
-            max_seq_length (int): Maximum sequence length for chunking (default: 256)
-            use_lr_schedule (bool): Whether to use learning rate warmup and cosine decay (default: True)
-            warmup_steps (int): Number of warmup steps (default: 500)
-            dropout (float): Dropout probability (default: 0.0)
-            min_lr (float): Minimum learning rate floor (default: 0.0)
+            tokenizer (object): Tokenizer instance (TikToken or BPETokenizer)
+            training_data (list, optional): List of text strings for training. Defaults to None.
+            lr (float, optional): Learning rate. Defaults to 1e-4.
+            num_blocks (int, optional): Number of transformer blocks to stack. Defaults to 8.
+            num_heads (int, optional): Number of attention heads per block.
+            embedding_dim (int, optional): Embedding dimension.
+                                            Must be divisible by num_heads and num_blocks.
+                                            Defaults to 512.
+            max_seq_length (int, optional): Maximum sequence length for chunking. Defaults to 256.
+            use_moe (bool, optional): Whether to use MoE. Defaults to True.
+            num_experts (int, optional): Total number of experts. Defaults to 8.
+            experts_per_token (int, optional): How many experts are active per token. Defaults to 2.
+            use_lr_schedule (bool, optional): Whether to use learning rate warmup and cosine decay.
+                                                Defaults to True.
+            warmup_steps (int, optional): Number of warmup steps. Defaults to 500.
+            dropout (float, optional): Dropout probability. Defaults to 0.0.
+            min_lr (float, optional): Minimum learning rate floor. Defaults to 0.0.
+            load_balance_coef (float, optional): Weight for auxiliary load balancing loss.
+                                                    Defaults to 0.01.
         """
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
@@ -79,14 +126,21 @@ class Trainer:
                 self.token_ids.append(ids)
 
         self.token_ids = token_ids
+
         self.num_blocks = num_blocks
         self.num_heads = num_heads
+
+        self.use_moe = use_moe
+        self.num_experts = num_experts
+        self.experts_per_token = experts_per_token
+        self.lbc = load_balance_coef
+
         self.transformer_stack = TransformerStack(
             self.embedding_layer,
             num_blocks=num_blocks,
             num_heads=num_heads,
             dropout=dropout
-        )
+        ) # TODO: Change this to be able to use MoE.
 
         self.output_layer = OutputLayer(self.embedding_layer)
         self.loss_fn = CrossEntropyLoss()
@@ -125,16 +179,26 @@ class Trainer:
         embedding_dim = self.embedding_layer.embedding_dim
 
         @jax.jit
-        def fwd_jit(embed_params, stack_params, output_params, final_ln_params, token_ids):
+        def fwd_jit(embed_params:dict,
+                    stack_params:dict,
+                    output_params:dict,
+                    final_ln_params:dict,
+                    token_ids:jnp.ndarray
+                    ) -> tuple[jnp.ndarray, jnp.ndarray]:
             """
             Forward pass through entire model using JAX.
 
             Args:
+                embed_params (dict): Embedding parameters
+                stack_params (dict): Transformer stack parameters
+                output_params (dict): Output layer parameters
+                final_ln_params (dict): Final LayerNorm parameters
                 token_ids (jnp.ndarray): Token IDs, shape (batch, seq_len)
-                final_ln_params: Final LayerNorm parameters
 
             Returns:
-                tuple: (transformer_out, logits)
+                tuple:
+                    - transformer_out (jnp.ndarray): Transformer output
+                    - logits (jnp.ndarray): Logits
             """
             embeddings, _ = EmbeddingLayer.embedding_fwd(
                 embed_params,
