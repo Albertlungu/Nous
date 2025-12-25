@@ -184,6 +184,8 @@ class Trainer:
         num_heads = self.num_heads
         head_dim = self.embedding_layer.embedding_dim // self.num_heads
         embedding_dim = self.embedding_layer.embedding_dim
+        num_experts = self.num_experts
+        experts_per_token = self.experts_per_token
 
         @jax.jit
         def fwd_jit(embed_params:dict,
@@ -220,13 +222,16 @@ class Trainer:
 
             for i in range(len(stack_params)):
                 block_params = stack_params[i]
-                current = TransformerBlock.fwd(
+                current, aux_loss = TransformerBlock.fwd(
                     block_params,
                     current,
                     num_heads_local,
                     head_dim_local,
-                    embedding_dim_local
+                    embedding_dim_local,
+                    num_experts,
+                    experts_per_token
                 )
+                total_aux_loss += aux_loss
 
             # Apply final LayerNorm after all transformer blocks
             current = TransformerBlock.layer_norm(
@@ -237,7 +242,7 @@ class Trainer:
 
             logits = OutputLayer.fwd(output_params, current)
 
-            return current, logits
+            return current, logits, total_aux_loss
         # Create a bound wrapper (no-op wrapper — fwd_jit already closes over static values)
         self._fwd = fwd_jit
 
@@ -250,6 +255,10 @@ class Trainer:
         head_dim = self.embedding_layer.embedding_dim // self.num_heads
         embedding_dim = self.embedding_layer.embedding_dim
         num_blocks = self.num_blocks
+
+        num_experts = self.num_experts
+        experts_per_token = self.experts_per_token
+        lbc = self.lbc
 
         # Store tokenizer IDs as static values for JIT compilation
         padding_token_id = 0
@@ -272,15 +281,20 @@ class Trainer:
                 embeddings, _ = EmbeddingLayer.embedding_fwd(embed_params, token_ids)
 
                 current = embeddings
+                total_aux_loss = 0.0
+
                 for i in range(num_blocks):
                     block_params = stack_params[i]
-                    current = TransformerBlock.fwd(
+                    current, aux_loss = TransformerBlock.fwd(
                         block_params,
                         current,
                         num_heads,
                         head_dim,
-                        embedding_dim
+                        embedding_dim,
+                        num_experts,
+                        experts_per_token
                     )
+                    total_aux_loss += aux_loss
 
                 # Apply final LayerNorm after all transformer blocks
                 current = TransformerBlock.layer_norm(
@@ -292,14 +306,16 @@ class Trainer:
                 logits = OutputLayer.fwd(output_params, current)
                 # Ignore padding (0) during loss calculation
                 # Use ignore_index (scalar) instead of ignore_indices (list) for JIT compatibility
-                loss = CrossEntropyLoss.fwd(
+                ce_loss = CrossEntropyLoss.fwd(
                     logits,
                     targets,
                     ignore_index=0,
                     eos_weight=1.0,  # Full weight for EOS tokens
                     eos_token_id=eos_token_id
                 )
-                return loss
+
+                total_loss = ce_loss + lbc * total_aux_loss
+                return total_loss
 
             loss, grads = jax.value_and_grad(loss_fn, argnums=(0, 1, 2, 3))(
                 embed_params, stack_params, output_params, final_ln_params
@@ -745,7 +761,7 @@ class Trainer:
 
         return param_counts
 
-    def print_model_summary(self): 
+    def print_model_summary(self):
         """Print a summary of the model architecture and parameter counts."""
         counts = self.count_parameters()
 
