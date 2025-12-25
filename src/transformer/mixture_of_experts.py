@@ -111,6 +111,218 @@ class MOE:
 
         return params
 
+    def set_params(self, params) -> None:
+        """
+        Load params from a dictionary.
+
+        Args:
+            params (dict): Parameter dictionary
+        """
+        self.router_W = params['router_W']
+        self.router_B = params['router_B']
+
+        for i in range(self.num_experts):
+            self.experts[i] = {
+                'W1': params[f'expert_{i}_W1'],
+                'B1': params[f'expert_{i}_B1'],
+                'W2': params[f'expert_{i}_W2'],
+                'B2': params[f'expert_{i}_B2']
+            }
+
+    @staticmethod
+    def gelu(x) -> jnp.ndarray:
+        """
+        GELU activation function
+
+        Args:
+            x (jnp.ndarray): array of vectors to go through activation function (3D matrix)
+
+        Returns:
+            jnp.ndarray: activated layer from hidden layer
+        """
+        return 0.5 * x * (1+jnp.tanh(jnp.sqrt(2/jnp.pi) * (x + 0.044715 * x**3)))
+
+    @staticmethod
+    def relu(x) -> jnp.ndarray:
+        """Basically gelu but simpler
+
+        Args:
+            x (jnp.ndarray): array of vectors to go through activation function (3D matrix)
+
+        Returns:
+            jnp.ndarray: activated layer from hidden layer
+        """
+        return jnp.maximum(0, x)
+
+    @jax.jit
+    @staticmethod
+    def expert_fwd(x:jnp.ndarray,
+                   expert_params:dict,
+                   activation='gelu'
+                   ) -> jnp.ndarray:
+        """
+        Forward pass through a single expert (normal FFN)
+
+        Args:
+            x (jnp.ndarray): Input tensor (batch, seq_len, embedding_dim)
+            expert_params (dict): Dictionary with W1, B1, W2, B2
+            activation (str, optional): Activation, 'gelu' or 'relu'. Defaults to 'gelu'.
+
+        Returns:
+            jnp.ndarray: Output tensor (batch, seq_len, embedding_dim)
+        """
+
+        # First layer: transformations are applied to input tensor
+        hidden = x @ expert_params['W1'] + expert_params['B1']
+
+        # Activation
+        if activation == 'gelu':
+            activated = MOE.gelu(hidden)
+        else:
+            activated = MOE.relu(hidden)
+
+        # Second layer: transformations are applied to activated layer
+        output = activated @ expert_params['W2'] + expert_params['B2']
+
+        return output
+
+    @jax.jit
+    @staticmethod
+    def fwd(params:dict,
+            x:jnp.ndarray,
+            num_experts:int,
+            experts_per_token:int,
+            activation='gelu',
+            training=False,
+            dropout=0.0,
+            key=None
+            ) -> tuple[jnp.ndarray, tentative]:
+        """
+        Forward pass through full MoE layer.
+
+        Args:
+            params (dict): All MoE parameters (from get_params())
+            x (jnp.ndarray): Input tensor (batch, seq_len, embedding_dim)
+            num_experts (int): Number of experts
+            experts_per_token (int): How many experts to activate per token.
+            activation (str, optional): Activation function ('gelu' or 'relu'). Defaults to 'gelu'.
+            training (bool, optional): Whether in training mode. Defaults to False.
+            dropout (float, optional): Dropout probability. Defaults to 0.0.
+            key (jax.random.PRNGkey, optional): JAX random key for dropout. Defaults to None.
+
+        Returns:
+            tuple
+                - output (jnp.ndarray): MoE output (batch, seq_len, embedding_dim)
+                - aux_loss (tentative): Load balancing auxiliary loss
+        """
+
+        batch_size, seq_len, embedding_dim = x.shape
+
+        #======== 1: Router ======== Calculate routing scores (decide which expert to use)
+        router_logits = x @ params['router_W'] + params['router_B'] # Calculate score for each expert per token
+
+        # Convert to probabilities
+        router_probs = jax.nn.softmax(router_logits, axis=-1) # Shape: (batch, seq_len, num_experts)
+
+        # ======= 2: Top-k selection (picking the selection) ========
+        top_k_probs, top_k_indices = jax.lax.top_k(router_probs, experts_per_token)
+        # top_k_probs: (batch, seq_len, experts_per_token)
+        # top_k_indices: (batch, seq_len, experts_per_token)
+
+        # Probability normalization
+        top_k_probs = top_k_probs / jnp.sum(top_k_probs, axis=-1, keepdims=True)
+
+        # ======= 3: Expert processing (run tokens through experts) ========
+        output = jnp.zeros_like(x) # Init output
+
+        # Process each expert
+        for i in range(num_experts):
+            # Get params
+            expert_params = {
+                'W1': params[f'expert_{i}_W1'],
+                'B1': params[f'expert_{i}_B1'],
+                'W2': params[f'expert_{i}_W2'],
+                'B2': params[f'expert_{i}_B2']
+            }
+            # Mask finds which tokens selected this expert (batch, seq_len)
+            expert_mask = jnp.any(top_k_indices == i, axis=-1) # True where expert is in top_k
+
+            # Get routing weights for this expert
+            expert_weights = jnp.where(
+                top_k_indices == i,
+                top_k_probs,
+                0.0
+            ).sum(axis=-1) # shape: (batch_seq_len)
+
+            # Run expert on all tokens
+            expert_out = MOE.expert_fwd(x, expert_params, activation)
+
+            # Make a weighted output multiplied by the routing weights
+            weighted_out = expert_out * expert_weights[..., None] # ... adds a dimension (batch, seq_len, 1)
+
+            output = output + weighted_out
+
+        # ======= 4: Dropout =======
+        if training and dropout > 0.0:
+            if key is None:
+                key = jax.random.PRNGKey(0)
+            keep_prob = 1.0 - dropout
+            mask = jax.random.bernoulli(key, keep_prob, output.shape)
+            output = jnp.where(mask, output / keep_prob, 0.0)
+
+        # ======= 5: Load balancing loss ========
+        # Make sure usage of experts is balanced to prevent "expert collapse"
+            # Where all tokens go to the same 1-2 experts
+        expert_usage = jnp.mean(router_probs, axis=(0, 1)) # Shape: (num_experts,)
+        aux_loss = num_experts * jnp.sum(expert_usage**2) # Weigh the experts already used more
+
+        return output, aux_loss
+
+    def fwd_instance(self,
+                    x:jnp.ndarray,
+                    training=False,
+                    key=None
+                    ) -> tuple[jnp.ndarray, tentative]:
+        """
+        Instance method fwd pass (calls the static fwd() method)
+        Args:
+            x (jnp.ndarray): Input tensor (batch, seq_len, embedding_dim)
+            expert_params (dict): Dictionary with W1, B1, W2, B2
+            activation (str, optional): Activation, 'gelu' or 'relu'. Defaults to 'gelu'.
+
+        Returns:
+            tuple:
+                - output (jnp.ndarray): MoE output (batch, seq_len, embedding_dim)
+                - aux_loss (tentative): Load balancing auxiliary loss
+        """
+        params = self.get_params()
+        return self.fwd(
+            params,
+            x,
+            self.num_experts,
+            self.experts_per_token,
+            activation=self.activation,
+            training=training,
+            dropout=self.dropout,
+            key=key
+        )
+
+    def count_params(self):
+        """
+        Count total number of params in MoE layer
+
+        Returns:
+            int: Total parameter count
+        """
+        router_params = self.embedding_dim * self.num_experts + self.num_experts
+
+        expert_params = self.num_experts * (
+            self.embedding_dim * self.ff_dim + self.ff_dim + # W1, B1
+            self.ff_dim * self.embedding_dim + self.embedding_dim) # W2, B2
+
+        return router_params + expert_params
+
+
 def main() -> None:
     # moe = MOE()
     # print(moe.get_params())
