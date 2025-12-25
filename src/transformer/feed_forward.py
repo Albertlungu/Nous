@@ -2,7 +2,7 @@
 src/transformer/feed_forward.py
 
 Defines the FeedForward class, a two-layer feed-forward network used in transformer architectures.
-The network applies a linear transformation, a GELU activation, and another linear transformation to
+The network applies a linear transformation, a gelu activation, and another linear transformation to
 token embeddings.
 
 Provides:
@@ -26,13 +26,13 @@ class FeedForward():
     """
     A FeedForward neural network module used within transformer architectures.
 
-    This class implements a two-layer feed-forward network with GELU activation.
+    This class implements a two-layer feed-forward network with gelu activation.
     It takes token embeddings as input and applies a linear transformation followed
     by a non-linear activation and another linear transformation to produce the output.
 
     Key components:
     - Two sets of weights and biases (W1, B1 for the first layer, W2, B2 for the second layer).
-    - GELU activation function.
+    - gelu activation function.
     - Forward and backward passes for training with gradient descent.
     """
 
@@ -80,9 +80,9 @@ class FeedForward():
         self.B2 = jnp.zeros(self.embedding_dim) # Bias second layer
 
     @staticmethod
-    def GELU(x) -> jnp.ndarray:
+    def gelu(x) -> jnp.ndarray:
         """
-        GELU activation function
+        gelu activation function
 
         Args:
             x (jnp.ndarray): array of vectors to go through activation function (3D matrix)
@@ -93,8 +93,8 @@ class FeedForward():
         return 0.5 * x * (1+jnp.tanh(jnp.sqrt(2/jnp.pi) * (x + 0.044715 * x**3)))
 
     @staticmethod
-    def ReLU(x) -> jnp.ndarray:
-        """Basically GELU but simpler
+    def relu(x) -> jnp.ndarray:
+        """Basically gelu but simpler
 
         Args:
             x (jnp.ndarray): array of vectors to go through activation function (3D matrix)
@@ -117,7 +117,7 @@ class FeedForward():
             jnp.ndarray: Output array of shape (batch_size, seq_len, embedding_dim)
         """
         hidden = x @ params['W1'] + params['B1']
-        activated = FeedForward.GELU(hidden)
+        activated = FeedForward.gelu(hidden)
         output = activated @ params['W2'] + params['B2']
 
         if training and dropout > 0.0 and rng_key is not None:
@@ -139,7 +139,7 @@ class FeedForward():
             jnp.ndarray: Output array of shape (batch_size, embedding_dim).
         """
         hidden = x @ self.W1 + self.B1
-        activated = self.GELU(hidden)
+        activated = self.gelu(hidden)
         output = activated @ self.W2 + self.B2
         return output
 
@@ -156,7 +156,7 @@ class FeedForward():
         """
         def loss_fn(W1, B1, W2, B2):
             hidden = x @ W1 + B1
-            activated = self.GELU(hidden)
+            activated = self.gelu(hidden)
             logits = activated @ W2 + B2
             return self.loss_fn(logits, target_ids)
 
