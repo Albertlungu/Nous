@@ -4,15 +4,15 @@ src/transformer/transformer_block.py
 The TransformerBlock class representing a single transformer block, computing both the forward and
     backward pass.
 
-Each transformer block consists of a multi head attention block followed by a feedforward network,
-with residual connections and layer normalization applied at each sublayer (after the use of mha,
-then ffn)
+Each transformer block consists of a multi head attention block followed by a mixture of experts layer,
+with residual connections and layer normalization applied at each sublayer (after the use of MHA,
+then MoE)
 
 Classes:
     TransformerBlock:
         Implements a transformer block with:
             - MHA Self-attention
-            - Feedforward Network (FFN)
+            - Mixture of Experts (MoE)
             - Layer norm and residual connection
             - Fwd pass with optional dropout and KV cache
             - Gradient computation for backprop
@@ -29,11 +29,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 from src.embeddings.embeddings import EmbeddingLayer
 from src.transformer.multi_head_attention import MultiHeadAttention
 from src.transformer.feed_forward import FeedForward
+from src.transformer.mixture_of_experts import MOE
 
 
 class TransformerBlock:
     """
-    Represents a single transformer block, including attention and feedforward layers.
+    Represents a single transformer block, including attention and MoE layers.
 
     Attributes:
         token_ids (list or array): Token indices for the input sequence.
@@ -50,9 +51,13 @@ class TransformerBlock:
 
     def __init__(self,
                 embedding_layer:EmbeddingLayer,
+                moe:MOE,
                 num_heads=8,
                 num_blocks=8,
-                dropout=0.0
+                dropout=0.0,
+                use_moe=True,
+                num_experts=8,
+                experts_per_token=2
                 ) -> None:
         """
         Initializing instance variables for the TransformerBlock class
@@ -62,6 +67,9 @@ class TransformerBlock:
             num_heads (int, optional): Number of attention heads. Defaults to 8.
             num_blocks (int, optional): Number of transformer blocks (depth). Defaults to 8.
             dropout (float, optional): Dropout probability. Defaults to 0.0.
+            use_moe (bool, optional): Whether to use MoE instead of standard FFN. Defaults to True.
+            num_experts (int, optional): Total number of experts. Defaults to 8.
+            experts_per_token (int, optional): How many experts to use per token. Defaults to 2.
         """
 
         self.embedding_dim = embedding_layer.embedding_dim
@@ -74,6 +82,25 @@ class TransformerBlock:
         self.beta_1 = jnp.zeros((self.embedding_dim,))
         self.gamma_2 = jnp.ones((self.embedding_dim,))
         self.beta_2 = jnp.zeros((self.embedding_dim,))
+
+        self.use_moe = use_moe
+
+        if self.use_moe:
+            # Create MoE layer instead of FFN
+            self.moe = moe(
+                embedding_dim=self.embedding_dim,
+                ff_dim=4 * self.embedding_dim,
+                num_experts=num_experts,
+                experts_per_token=experts_per_token,
+                num_blocks=num_blocks,
+                dropout=dropout
+            )
+        else:
+            self.ffn = FeedForward(
+                embedding_dim=self.embedding_dim,
+                num_blocks=num_blocks,
+                dropout=dropout
+            )
 
     @staticmethod
     def layer_norm(x:jnp.ndarray,
