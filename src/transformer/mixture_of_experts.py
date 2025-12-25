@@ -6,6 +6,7 @@ Mixture of Experts implementation in JAX for Nous
 
 import os
 import sys
+from functools import partial
 
 import jax # pylint: disable=no-member
 import jax.numpy as jnp # pylint: disable=no-member
@@ -155,7 +156,7 @@ class MOE:
         return jnp.maximum(0, x)
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, static_argnums=(2,))
     def expert_fwd(x:jnp.ndarray,
                    expert_params:dict,
                    activation='gelu'
@@ -187,7 +188,7 @@ class MOE:
         return output
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, static_argnums=(2, 3, 4, 5, 6))
     def fwd(params:dict,
             x:jnp.ndarray,
             num_experts:int,

@@ -21,6 +21,7 @@ Classes:
 
 import os
 import sys
+from functools import partial
 
 import jax # pylint: disable=no-member
 import jax.numpy as jnp # pylint: disable=no-member
@@ -133,7 +134,7 @@ class TransformerBlock:
         return output
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, static_argnums=(2, 3, 4, 5, 6, 7, 8))
     def fwd(params:dict,
             x:jnp.ndarray,
             num_heads:int,
@@ -237,7 +238,7 @@ class TransformerBlock:
         return final_output, aux_loss
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, static_argnums=(2, 3, 4))
     def fwd_with_cache(params:dict,
                        x:jnp.ndarray,
                        num_heads:int,

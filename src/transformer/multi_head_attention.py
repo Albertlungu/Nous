@@ -12,6 +12,7 @@ at different positions.
 
 import os
 import sys
+from functools import partial
 
 import jax # pylint: disable=no-member
 import jax.numpy as jnp # pylint: disable=no-member
@@ -141,7 +142,7 @@ class MultiHeadAttention:
         return output
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, static_argnums=(2, 3, 4))
     def fwd_with_cache(params:dict,
                        x:jnp.ndarray,
                        num_heads:int,
