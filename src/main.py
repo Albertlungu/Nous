@@ -219,8 +219,8 @@ def train():
 
     # Train with automatic checkpointing
     trainer.train(
-        epochs=75,
-        batch_size=64,
+        epochs=10,
+        batch_size=16,
         checkpoint_path=get_models_path('alpaca284.pkl'),
         save_every=1,
         prompt="Instruction: List three best practices for starting a conversation.\nInput: \nOutput:"

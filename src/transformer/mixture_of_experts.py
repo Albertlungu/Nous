@@ -154,8 +154,8 @@ class MOE:
         """
         return jnp.maximum(0, x)
 
-    @jax.jit
     @staticmethod
+    @jax.jit
     def expert_fwd(x:jnp.ndarray,
                    expert_params:dict,
                    activation='gelu'
@@ -186,8 +186,8 @@ class MOE:
 
         return output
 
-    @jax.jit
     @staticmethod
+    @jax.jit
     def fwd(params:dict,
             x:jnp.ndarray,
             num_experts:int,

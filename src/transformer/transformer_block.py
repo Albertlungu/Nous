@@ -132,8 +132,8 @@ class TransformerBlock:
 
         return output
 
-    @jax.jit
     @staticmethod
+    @jax.jit
     def fwd(params:dict,
             x:jnp.ndarray,
             num_heads:int,
