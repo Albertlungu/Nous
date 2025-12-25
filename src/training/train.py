@@ -58,22 +58,22 @@ class Trainer:
     """
 
     def __init__(self,
-                tokenizer,
-                training_data=None,
-                token_ids=None,
-                lr=1e-4,
-                num_blocks=8,
-                num_heads=8,
-                embedding_dim=512,
-                max_seq_length=256,
-                use_moe=True,
-                num_experts=8,
-                experts_per_token=2,
-                use_lr_schedule=True,
-                warmup_steps=500,
-                dropout=0.0,
-                min_lr=0.0,
-                load_balance_coef=0.01
+                 tokenizer,
+                 training_data=None,
+                 token_ids=None,
+                 lr=1e-4,
+                 num_blocks=8,
+                 num_heads=8,
+                 embedding_dim=512,
+                 max_seq_length=256,
+                 use_moe=True,
+                 num_experts=8,
+                 experts_per_token=2,
+                 use_lr_schedule=True,
+                 warmup_steps=500,
+                 dropout=0.0,
+                 min_lr=0.0,
+                 load_balance_coef=0.01
                 ) -> None:
         """
         Initialize Trainer with model architecture.
@@ -139,8 +139,11 @@ class Trainer:
             self.embedding_layer,
             num_blocks=num_blocks,
             num_heads=num_heads,
-            dropout=dropout
-        ) # TODO: Change this to be able to use MoE.
+            dropout=dropout,
+            use_moe=use_moe,
+            num_experts=num_experts,
+            experts_per_token=experts_per_token
+        )
 
         self.output_layer = OutputLayer(self.embedding_layer)
         self.loss_fn = CrossEntropyLoss()
@@ -159,7 +162,11 @@ class Trainer:
         }
 
         # Initialize Adam optimizer with beta2=0.95 (nanoGPT value for better LLM training)
-        self.optimizer = AdamNested(lr=lr, beta1=0.9, beta2=0.95, epsilon=1e-8, min_lr=min_lr)
+        self.optimizer = AdamNested(lr=lr,
+                                    beta1=0.9,
+                                    beta2=0.95,
+                                    epsilon=1e-8,
+                                    min_lr=min_lr)
 
         # Create JIT-compiled loss and gradient function
         self._compiled_loss_and_grad = self._create_jit_loss_fn()
@@ -249,9 +256,19 @@ class Trainer:
         eos_token_id = self.tokenizer.eos_token_id
 
         @jax.jit
-        def loss_and_grad_fn(embed_params, stack_params, output_params, final_ln_params, token_ids, targets):
+        def loss_and_grad_fn(embed_params:dict,
+                             stack_params:dict,
+                             output_params:dict,
+                             final_ln_params:dict,
+                             token_ids:jnp.ndarray,
+                             targets:jnp.ndarray
+                            ) -> tuple:
             """JIT-compiled loss and gradient computation."""
-            def loss_fn(embed_params, stack_params, output_params, final_ln_params):
+            def loss_fn(embed_params:dict,
+                        stack_params:dict,
+                        output_params:dict,
+                        final_ln_params:dict
+                        ) -> any:
                 embeddings, _ = EmbeddingLayer.embedding_fwd(embed_params, token_ids)
 
                 current = embeddings
@@ -302,14 +319,17 @@ class Trainer:
         epsilon = self.optimizer.epsilon
 
         @jax.jit
-        def update_fn(params_pytree, grads_pytree, optimizer_state, t):
+        def update_fn(params_pytree:dict,
+                      grads_pytree:dict,
+                      optimizer_state:dict,
+                      t):
             """
             JIT-compiled Adam update using pytrees (works on nested structures).
 
             Args:
-                params_pytree: Nested dict of parameters (from _flatten_params)
-                grads_pytree: Nested dict of gradients (same structure)
-                optimizer_state: (m_pytree, v_pytree) - nested dicts of moment estimates
+                params_pytree (dict): Nested dict of parameters (from _flatten_params)
+                grads_pytree (dict): Nested dict of gradients (same structure)
+                optimizer_state (dict): (m_pytree, v_pytree) - nested dicts of moment estimates
                 t: Timestep
 
             Returns:
@@ -317,7 +337,7 @@ class Trainer:
             """
             m_pytree, v_pytree = optimizer_state
 
-            def adam_update_leaf(param, grad, m, v):
+            def adam_update_leaf(param, grad, m, v) -> tuple:
                 """Apply Adam update to a single parameter array."""
                 # Update biased first moment
                 m_new = beta1 * m + (1 - beta1) * grad
@@ -364,7 +384,7 @@ class Trainer:
 
         return update_fn
 
-    def _flatten_params(self):
+    def _flatten_params(self) -> tuple:
         """
         Get all parameters as a pytree (tuple structure).
         This structure matches the gradient structure from compute_loss_and_grads.
@@ -379,7 +399,7 @@ class Trainer:
             {'gamma': self.final_gamma, 'beta': self.final_beta}
         )
 
-    def _unflatten_params(self, params):
+    def _unflatten_params(self, params) -> tuple:
         """
         Set all parameters from a pytree (tuple structure).
 
@@ -422,7 +442,10 @@ class Trainer:
     def fwd(self, *args, **kwargs):
         return self._fwd(*args, **kwargs)
 
-    def compute_loss_and_grads(self, token_ids, targets):
+    def compute_loss_and_grads(self,
+                               token_ids:jnp.ndarray,
+                               targets:jnp.ndarray
+                               ) -> tuple[any, dict]:
         """
         Compute loss and ALL gradients using JIT-compiled JAX autodiff.
 
@@ -452,7 +475,7 @@ class Trainer:
             'final_ln': final_ln_grads
         }
 
-    def update_params(self, grads):
+    def update_params(self, grads:dict):
         """
         Update all parameters using JIT-compiled Adam optimizer with pytrees.
         This is much faster than the previous list-based approach.
@@ -493,7 +516,7 @@ class Trainer:
         self.output_layer.b_out = jnp.clip(self.output_layer.b_out, -10.0, 10.0)
 
 
-    def _get_timestamped_checkpoint_path(self, base_path):
+    def _get_timestamped_checkpoint_path(self, base_path:str) -> str:
         """
         Generate a timestamped checkpoint path.
 
@@ -517,16 +540,21 @@ class Trainer:
 
         return timestamped_path
 
-    def train(self, epochs=10, batch_size=20, checkpoint_path=None, save_every=10, prompt=""):
+    def train(self,
+              epochs:int,
+              checkpoint_path:str,
+              batch_size=32,
+              save_every=1,
+              prompt=""):
         """
         Train the model with JAX autodiff.
         Automatically saves checkpoints with timestamps.
 
         Args:
-            epochs (int): Number of training epochs
-            batch_size (int): Batch size
-            checkpoint_path (str): Base path for checkpoints (timestamp will be added)
-            save_every (int): Save checkpoint every N epochs
+            epochs (int): Number of training epochs.
+            checkpoint_path (str): Base path for checkpoints (timestamp will be added).
+            batch_size (int, optional): Batch size. Defaults to 32.
+            save_every (int, optional): Save checkpoint every N epochs. Defaults to 1.
         """
         # Ensure checkpoint_path uses centralized models directory when not provided
         if checkpoint_path is None:
@@ -717,7 +745,7 @@ class Trainer:
 
         return param_counts
 
-    def print_model_summary(self):
+    def print_model_summary(self): 
         """Print a summary of the model architecture and parameter counts."""
         counts = self.count_parameters()
 
@@ -756,7 +784,7 @@ class Trainer:
         print(f"Model Size (float16): ~{size_mb:.2f} MB")
         print("="*60)
 
-    def _generate_metadata(self):
+    def _generate_metadata(self): # TODO: Add docstring
         """Generate comprehensive metadata about the model and training."""
         from datetime import datetime
 
@@ -835,7 +863,7 @@ class Trainer:
 
         return metadata
 
-    def save_checkpoint(self, path=None):
+    def save_checkpoint(self, path=None): # TODO: Add docstring
         if path is None:
             path = get_models_path("training_logs.pkl")
         """Save model parameters AND optimizer state to file (for resuming training)."""
@@ -865,7 +893,7 @@ class Trainer:
         with open(path, "wb") as f:
             pickle.dump(checkpoint, f)
 
-    def save_model_only(self, path=None):
+    def save_model_only(self, path=None): # TODO: Add docstring
         if path is None:
             path = get_models_path("model.pkl")
         """Save ONLY model weights (smaller file, for inference only)."""
@@ -890,7 +918,7 @@ class Trainer:
 
         print(f"Model saved to {path} (weights only, no optimizer state)")
 
-    def save_model_npz(self, path=None):
+    def save_model_npz(self, path=None): # TODO: Add docstring
         if path is None:
             path = get_models_path("model.npz")
         """Save model weights as compressed NumPy arrays (smallest file size)."""
@@ -934,7 +962,7 @@ class Trainer:
         np.savez_compressed(path, **save_dict, config=config)
         print(f"Model saved to {path} (compressed NPZ format)")
 
-    def load_checkpoint(self, path="artifacts/model/training_logs.pkl"):
+    def load_checkpoint(self, path="artifacts/model/training_logs.pkl"): # TODO: Add docstring
         """Load model parameters from file."""
         print(f"Loading checkpoint from {path}...")
         print("This may take 1-2 minutes for large files...")
@@ -1019,7 +1047,14 @@ class Trainer:
 
         print("Ready for inference!")
 
-    def generate(self, prompt, max_length=50, temperature=0.7, top_k=40, repetition_penalty=1.2, debug=False):
+    def generate(self,
+                 prompt:str,
+                 max_length=50,
+                 temperature=0.7,
+                 top_k=40,
+                 repetition_penalty=1.2,
+                 debug=False):
+        # TODO: Make sure everything here is true (the docstring)
         """
         Generate text using the trained model (JAX-based).
 
@@ -1152,8 +1187,8 @@ class Trainer:
     #         ]
     #         batches.append(np.array(padded_batches))
     #     return batches
-    
-    def create_batches(self, batch_size=100):
+
+    def create_batches(self, batch_size=100): # TODO: Add docstring
         """Create padded batches."""
         fixed_len = self.max_seq_length
         batches = []
@@ -1167,9 +1202,14 @@ class Trainer:
                 padded_batches.append(seq + [0] * (fixed_len - len(seq)))
             batches.append(np.array(padded_batches))
         return batches
-        
-    
-    def extend_training(self, checkpoint_path, epochs=10, batch_size=20, save_every=5, prompt=""):
+
+
+    def extend_training(self,
+                        checkpoint_path,
+                        epochs=10,
+                        batch_size=20,
+                        save_every=5,
+                        prompt=""): # TODO: Add docstring
         print(f"Loading checkpoint from {checkpoint_path}...")
         self.load_checkpoint(checkpoint_path)
 
@@ -1188,17 +1228,15 @@ class Trainer:
 
         print(f"Extended training to {new_checkpoint}")
 
-
-
-
 def main():
-    tokenizer = TikToken()
-    print(f"Loaded TikToken tokenizer with vocab size: {tokenizer.vocab_size}")
+    # tokenizer = TikToken()
+    # print(f"Loaded TikToken tokenizer with vocab size: {tokenizer.vocab_size}")
 
-    user_input = ["Hello world"]
-    trainer = Trainer(tokenizer, user_input, num_blocks=12, num_heads=12)
+    # user_input = ["Hello world"]
+    # trainer = Trainer(tokenizer, user_input, num_blocks=12, num_heads=12)
 
-    trainer.print_model_summary()
+    # trainer.print_model_summary()
+    pass
 
 if __name__ == '__main__':
     main()
