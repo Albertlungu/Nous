@@ -51,7 +51,6 @@ class TransformerBlock:
 
     def __init__(self,
                 embedding_layer:EmbeddingLayer,
-                moe:MOE,
                 num_heads=8,
                 num_blocks=8,
                 dropout=0.0,
@@ -87,7 +86,7 @@ class TransformerBlock:
 
         if self.use_moe:
             # Create MoE layer instead of FFN
-            self.moe = moe(
+            self.moe = MOE(
                 embedding_dim=self.embedding_dim,
                 ff_dim=4 * self.embedding_dim,
                 num_experts=num_experts,
@@ -136,10 +135,12 @@ class TransformerBlock:
             num_heads:int,
             head_dim:int,
             embedding_dim:int,
+            num_experts=8,
+            experts_per_token=2,
             dropout=0.0,
             training=True,
             rng_key=None
-            ) -> jnp.ndarray:
+            ) -> tuple[jnp.ndarray, float]:
         """
         Forward pass through transformer block (pure function for JIT).
 
@@ -157,9 +158,17 @@ class TransformerBlock:
             num_heads (int): Number of attention heads
             head_dim (int): Dimension per head
             embedding_dim (int): Total embedding dimension
+            num_experts (int, optional): Total number of experts. Defaults to 8.
+            experts_per_token (int, optional): How many experts are used for each token.
+                                                Defaults to 2.
+            dropout (float, optional): Dropout probability. Defaults to 0.0.
+            training (bool, optional): If the model is in training. Defaults to True.
+            rng_key (jax.random.PRNGkey, optional): JAX PRNG key. Defaults to None.
 
         Returns:
-            jnp.ndarray: Output (batch, seq_len, embedding_dim)
+            tuple:
+                - jnp.ndarray: Output (batch, seq_len, embedding_dim)
+                - jnp.float16: auxiliary loss.
           """
 
         if rng_key is not None:
@@ -198,16 +207,30 @@ class TransformerBlock:
             params['beta_2']
         )
 
-        ff_output = FeedForward.fwd(
-            params['ffn'],
-            ln2_out,
-            dropout=dropout,
-            training=training,
-            rng_key=rng_ffn
-        )
+        if 'moe' in params:
+            ff_output, aux_loss = MOE.fdw(
+                params['moe'],
+                ln2_out,
+                num_experts=num_experts,
+                experts_per_token=experts_per_token,
+                activation='gelu',
+                training=training,
+                dropout=dropout,
+                key=rng_ffn
+            )
+        else:
+            ff_output = FeedForward.fwd(
+                params['ffn'],
+                ln2_out,
+                dropout=dropout,
+                training=training,
+                rng_key=rng_ffn
+            )
+            aux_loss = 0.0
+
         final_output = residual_2 + ff_output
 
-        return final_output
+        return final_output, aux_loss
 
     @staticmethod
     @jax.jit
@@ -223,11 +246,11 @@ class TransformerBlock:
 
         Args:
             params (dict): Block params
-            x (jnp.jnparray): new token embeddings, shape: [batch, 1, embedding_dim]
+            x (jnp.ndarray): new token embeddings, shape: [batch, 1, embedding_dim]
             num_heads (int): Number of attention heads
             head_dim (int): Dimension of each head
             embedding_dim (int): Embedding dimension
-            past_kv (jnp.jnparray, optional): Cached K and V from the layer's other calls.
+            past_kv (jnp.ndarray, optional): Cached K and V from the layer's other calls.
                 Defaults to None.
 
         Returns:
@@ -263,19 +286,25 @@ class TransformerBlock:
         Returns:
             dict: All trainable params
         """
-        return {
+        params = {
             'attn': self.attention_layer.get_params(),
-            'ffn':{
-                'W1': self.ffn.W1,
-                'B1': self.ffn.B1,
-                'W2': self.ffn.W2,
-                'B2': self.ffn.B2
-            },
             'gamma_1': self.gamma_1,
             'beta_1': self.beta_1,
             'gamma_2': self.gamma_2,
             'beta_2': self.beta_2
         }
+
+        if self.use_moe:
+            params["moe"] = self.moe.get_params()
+        else:
+            params['ffn'] = {
+                'W1': self.ffn.W1,
+                'B1': self.ffn.B1,
+                'W2': self.ffn.W2,
+                'B2': self.ffn.B2
+            },
+
+        return params
 
     def compute_grads(self,
                       x:jnp.ndarray,
