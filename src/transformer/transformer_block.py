@@ -47,6 +47,9 @@ class TransformerBlock:
         gamma_1, beta_1: Learnable parameters for first layer normalization.
         gamma_2, beta_2: Learnable parameters for second layer normalization.
         attention_output: Output from the attention layer.
+            use_moe (bool, optional): Whether to use MoE instead of standard FFN. Defaults to True.
+            num_experts (int, optional): Total number of experts. Defaults to 8.
+            experts_per_token (int, optional): How many experts to use per token. Defaults to 2.
     """
 
     def __init__(self,

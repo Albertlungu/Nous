@@ -5,11 +5,14 @@ This file contains the TransformerStack class, which is used to stack multiple t
     on top of one another.
 """
 
+# TODO: Modify this to use MoE
+
 import jax
 import jax.numpy as jnp
 
 from src.transformer.transformer_block import TransformerBlock
 from src.embeddings.embeddings import EmbeddingLayer
+from src.transformer.mixture_of_experts import MOE
 
 class TransformerStack:
     """
@@ -24,30 +27,47 @@ class TransformerStack:
         blocks (list): List of TransformerBlock instances
         embedding_dim (int): Dimension of embeddings
         num_heads (int): Number of attention heads per block
+            use_moe (bool, optional): Whether to use MoE instead of standard FFN. Defaults to True.
+            num_experts (int, optional): Total number of experts. Defaults to 8.
+            experts_per_token (int, optional): How many experts to use per token. Defaults to 2.
       """
     def __init__(self,
                 embedding_layer:EmbeddingLayer,
                 num_blocks=8,
                 num_heads=8,
-                dropout=0.0
+                dropout=0.0,
+                use_moe=True,
+                num_experts=8,
+                experts_per_token=2
                 ) -> None:
         """
         Initialize stack of transformer blocks.
 
         Args:
             embedding_layer (EmbeddingLayer): Embedding layer instance
-            num_blocks (int): Number of blocks to stack (default: 8)
-            num_heads (int): Number of attention heads per block (default: 8)
-            dropout (float): Dropout probability (default: 0.0)
+            num_blocks (int, optional): Number of blocks to stack. Defaults to 8.
+            num_heads (int, optional): Number of attention heads per block. Defaults to 8.
+            dropout (float, optional): Dropout probability. Defaults to 0.0.
+            use_moe (bool, optional): Whether to use MoE instead of standard FFN. Defaults to True.
+            num_experts (int, optional): Total number of experts. Defaults to 8.
+            experts_per_token (int, optional): How many experts to use per token. Defaults to 2.
         """
         self.num_blocks = num_blocks
         self.embedding_dim = embedding_layer.embedding_dim
         self.num_heads = num_heads
         self.dropout = dropout
 
+        self.use_moe = use_moe
+        self.num_experts = num_experts
+        self.experts_per_token = experts_per_token
+
         # Pass num_blocks and dropout to each TransformerBlock
         self.blocks = [
-            TransformerBlock(embedding_layer, num_heads, num_blocks, dropout)
+            TransformerBlock(
+                embedding_layer, num_heads, num_blocks, dropout,
+                use_moe=use_moe,
+                num_experts=num_experts,
+                experts_per_token=experts_per_token)
             for _ in range(num_blocks)
         ]
 
@@ -63,13 +83,21 @@ class TransformerStack:
         """
 
         output = x
+        total_aux_loss = 0.0
         for block in self.blocks:
             params = block.get_params()
             head_dim = self.embedding_dim // self.num_heads
-            output = TransformerBlock.fwd(
-                params, output, self.num_heads, head_dim, self.embedding_dim
+            output, aux_loss = TransformerBlock.fwd(
+                params,
+                output,
+                self.num_heads,
+                head_dim,
+                self.embedding_dim,
+                self.num_experts,
+                self.experts_per_token
             )
-        return output
+            total_aux_loss += aux_loss
+        return output, total_aux_loss
 
     def compute_grads(self,
                       x:jnp.ndarray,
