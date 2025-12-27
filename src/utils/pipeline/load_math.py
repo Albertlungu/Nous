@@ -31,8 +31,8 @@ def load_orca_math(num_tokens=3_000_000_000, avg_tokens=700):
     num_examples = int(num_tokens / avg_tokens)
 
     try:
-        ds = load_dataset("microsoft/orca-math-word-problems-200k", split="train")
-        ds = ds.shuffle(seed=42).select(range(min(num_examples, len(ds))))
+        ds = load_dataset("microsoft/orca-math-word-problems-200k", split="train", streaming=True)
+        ds = ds.shuffle(seed=42).take(num_examples)
 
         formatted = []
         for example in tqdm(ds, desc="Processing Orca-Math"):

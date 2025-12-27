@@ -31,8 +31,8 @@ def load_sharegpt(num_tokens=4_000_000_000, avg_tokens=1500):
     num_examples = int(num_tokens / avg_tokens)
 
     try:
-        ds = load_dataset("anon8231489123/ShareGPT_Vicuna_unfiltered", split="train")
-        ds = ds.shuffle(seed=42).select(range(min(num_examples, len(ds))))
+        ds = load_dataset("anon8231489123/ShareGPT_Vicuna_unfiltered", split="train", streaming=True)
+        ds = ds.shuffle(seed=42).take(num_examples)
 
         formatted = []
         for example in tqdm(ds, desc="Processing ShareGPT"):

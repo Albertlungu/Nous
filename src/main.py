@@ -47,125 +47,6 @@ def save_token_ids(output_path):
     with open(output_path, "wb") as f:
         pickle.dump(token_ids, f)
 
-def analyze_training():
-    """
-    Analyze and visualize training progress across all training runs.
-    Creates a loss curve and displays model statistics.
-    """
-    print("="*80)
-    print("TRAINING ANALYSIS & MODEL STATISTICS")
-    print("="*80)
-
-    # Define training log files and how many epochs to take from each
-    training_logs = [
-        ("training_logs/train_medium_size.txt", 45, "Initial Training (1-45)"),
-        ("training_logs/extend_medium.txt", 50, "Extended from epoch 45 (46-95)"),
-        ("training_logs/extend_medium_partt_2.txt", 25, "Extended from epoch 50 (51-75)"),
-        ("training_logs/extend_medium_epoch120_condt.txt", 35, "Final Run from epoch 25 (26-60)")
-    ]
-
-    # Extract loss values from training logs
-    all_losses = []
-    all_epochs = []
-    epoch_counter = 0
-
-    for log_file, num_epochs, label in training_logs:
-        try:
-            with open(log_file, 'r') as f:
-                content = f.read()
-
-            # Extract epoch and loss using regex
-            pattern = r'Epoch (\d+)/\d+ complete\. Avg loss: ([\d.]+)'
-            matches = re.findall(pattern, content)
-
-            # Take only the specified number of epochs
-            for i, (epoch_num, loss) in enumerate(matches[:num_epochs]):
-                epoch_counter += 1
-                all_epochs.append(epoch_counter)
-                all_losses.append(float(loss))
-
-            print(f"\nLoaded {len(matches[:num_epochs])} epochs from {log_file.split('/')[-1]}")
-
-        except FileNotFoundError:
-            print(f"Warning: {log_file} not found, skipping...")
-
-    # Create the loss curve plot
-    plt.figure(figsize=(14, 8))
-
-    # Plot the loss curve
-    plt.subplot(2, 1, 1)
-    plt.plot(all_epochs, all_losses, linewidth=2, color='#2E86AB', marker='o', markersize=3)
-    plt.xlabel('Epoch', fontsize=12, fontweight='bold')
-    plt.ylabel('Average Loss', fontsize=12, fontweight='bold')
-    plt.title('Training Loss Over Time - PyGPT Model', fontsize=14, fontweight='bold')
-    plt.grid(True, alpha=0.3)
-
-    # Add annotations for key milestones
-    if len(all_losses) > 0:
-        plt.axhline(y=all_losses[0], color='r', linestyle='--', alpha=0.3, label=f'Initial: {all_losses[0]:.4f}')
-        plt.axhline(y=all_losses[-1], color='g', linestyle='--', alpha=0.3, label=f'Final: {all_losses[-1]:.4f}')
-        plt.legend()
-
-    # Display model statistics in a text box
-    plt.subplot(2, 1, 2)
-    plt.axis('off')
-
-    stats_text = f"""
-MODEL SPECIFICATIONS
-
-Architecture:
-  • Total Parameters: 76,895,360
-  • Embedding Dimension: 512
-  • Number of Blocks: 8
-  • Attention Heads: 8
-  • Vocabulary Size: 50,304 (TikToken)
-  • Max Sequence Length: 256
-
-Training Data:
-  • Total Examples: 448,382
-  • Total Tokens: 39,657,127
-  • Average Tokens/Example: 88.4
-  • Datasets: Alpaca (51,974), WizardLM (70,004),
-              FLAN-50k (50,000), GPT-Teacher (89,260)
-
-Training Configuration:
-  • Batch Size: 64
-  • Learning Rate: 0.0012 → 5e-06 (cosine decay)
-  • Total Training Steps: 1,191,020
-  • Backend: JAX on RTX 5090
-
-Performance:
-  • Initial Loss: {all_losses[0]:.4f}
-  • Final Loss: {all_losses[-1]:.4f}
-  • Loss Reduction: {((all_losses[0] - all_losses[-1]) / all_losses[0] * 100):.1f}%
-  • Total Epochs Analyzed: {len(all_epochs)}
-"""
-
-    plt.text(0.1, 0.5, stats_text, fontsize=10, family='monospace',
-             verticalalignment='center', bbox=dict(boxstyle='round',
-             facecolor='wheat', alpha=0.3))
-
-    plt.tight_layout()
-
-    # Save the plot
-    output_path = get_models_path('training_analysis.png')
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"\n{'='*80}")
-    print(f"Plot saved to: {output_path}")
-    print(f"{'='*80}")
-
-    # Display the plot
-    plt.show()
-
-    # Print summary statistics
-    print("\nTRAINING SUMMARY:")
-    print(f"  Total epochs analyzed: {len(all_epochs)}")
-    print(f"  Initial loss: {all_losses[0]:.4f}")
-    print(f"  Final loss: {all_losses[-1]:.4f}")
-    print(f"  Loss reduction: {all_losses[0] - all_losses[-1]:.4f} ({((all_losses[0] - all_losses[-1]) / all_losses[0] * 100):.1f}%)")
-    print(f"  Average loss per epoch: {sum(all_losses) / len(all_losses):.4f}")
-    print("="*80)
-
 def train():
     """Train a new model from scratch with JAX architecture."""
 
@@ -399,7 +280,6 @@ if __name__ == "__main__":
 To train the model from scratch, please enter 't'
 To extend from a previous checkpoint, please enter 'e'
 To use the main function, where the model responds to harcoded inputs that come directly from the training data, please enter 'm'
-To analyze the current model, please enter 'a'
 Or, to enter your own user input, please enter 'i':
 """)
     if main_or_train.lower() == 't':

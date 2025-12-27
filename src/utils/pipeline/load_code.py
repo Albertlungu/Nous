@@ -82,7 +82,7 @@ def load_evol_code_alpaca(num_tokens=2_000_000_000, avg_tokens=700):
     print("="*60)
 
     try:
-        ds = load_dataset("theblackcat102/evol-codealpaca-v1", split="train")
+        ds = load_dataset("theblackcat102/evol-codealpaca-v1", split="train", streaming=True)
 
         formatted = []
         for example in tqdm(ds, desc="Processing Evol-CodeAlpaca"):
