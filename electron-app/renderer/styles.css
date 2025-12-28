@@ -1115,6 +1115,41 @@ h2 {
     margin-top: 16px;
 }
 
+/* MoE Configuration */
+#moe-config-panel {
+    margin-bottom: 24px;
+}
+
+#moe-config-panel h3 {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 12px;
+    color: var(--text-secondary);
+}
+
+.moe-type-select {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+#moe-options {
+    display: none;
+}
+
+.moe-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    margin-top: 8px;
+}
 /* Modal styles */
 .modal-overlay {
     position: fixed;

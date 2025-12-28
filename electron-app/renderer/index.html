@@ -156,6 +156,45 @@
                             <label>Vocab Size: <input type="number" id="vocab-size" value="50257" readonly></label>
                         </div>
 
+                        <div id="moe-config-panel">
+                            <h3>Architecture Type</h3>
+                            <div class="moe-type-select">
+                                <span class="toggle-label" style="font-size: 13px; color:var(--text-secondary)">FFN</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="moe-toggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="toggle-label" style="font-size: 13px; color:var(--text-secondary)">MoE</span>
+                            </div>
+
+                            <div id="moe-options">
+                                <div class="config-grid">
+                                    <label>Total Experts:
+                                        <input
+                                            type="number"
+                                            id="num-experts"
+                                            value="8"
+                                            min="2"
+                                            max="256"
+                                        >
+                                    </label>
+                                    <label>Experts/Token:
+                                        <input
+                                            type="number"
+                                            id="experts-per-token"
+                                            value="2"
+                                            min="1"
+                                            max="16"
+                                        >
+                                    </label>
+                                </div>
+                                <div class="moe-desc">
+                                    MoE increases parameter count while keeping inference cost similar to FFN.
+                                    Default: 8 experts, 2 experts/token.
+                                </div>
+                            </div>
+                        </div>
+
                         <h3>Dataset Selection</h3>
                         <div class="config-grid">
                             <label style="grid-column: 1 / -1;">Dataset:
