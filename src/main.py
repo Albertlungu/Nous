@@ -288,8 +288,6 @@ Or, to enter your own user input, please enter 'i':
         main()
     elif main_or_train.lower() == 'e':
         extend()
-    elif main_or_train.lower() == 'a':
-        analyze_training()
     elif main_or_train.lower() == "ids":
         save_token_ids(get_training_data_path('alpaca_tokenized.pkl'))
     else:
