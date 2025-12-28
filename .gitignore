@@ -25,3 +25,59 @@ tmp/
 *.log
 
 concepts/private.md
+
+*implementation*
+*guide*
+# =========================
+# Python / runtime artifacts
+# =========================
+*.pyc
+**/*.pyc
+venv
+*.python-version
+
+# =========================
+# OS / editor noise
+# =========================
+**/.DS_Store
+**/.vscode/
+*.VSCodeCounter
+
+# =========================
+# Logs and temporary files
+# =========================
+*.log
+tmp/
+
+# =========================
+# Build / distribution outputs
+# =========================
+dist/
+out/
+build/
+release/
+
+# =========================
+# Node / Electron artifacts
+# =========================
+electron-app/node_modules
+
+# =========================
+# Training data & model artifacts (Nous-specific)
+# =========================
+*jax_training*
+training_logs/*.pkl
+artifacts/training_logs/alpaca284*.pkl
+alpaca284*.pkl
+
+# =========================
+# Data / config formats
+# =========================
+*.xml
+
+# =========================
+# Private / conceptual material
+# =========================
+concepts/private.md
+*implementation*
+*guide*
