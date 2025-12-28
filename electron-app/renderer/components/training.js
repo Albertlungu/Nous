@@ -1,5 +1,7 @@
 // Training functionality
 
+const { modelDirection } = require("three/tsl");
+
 document.addEventListener('DOMContentLoaded', () => {
     const startTrainingBtn = document.getElementById('start-training-btn');
     const pauseTrainingBtn = document.getElementById('pause-training-btn');
@@ -135,6 +137,36 @@ document.addEventListener('DOMContentLoaded', () => {
         bpeChoiceLabels[0].classList.add('active');
     }
 
+    const moeToggle = document.getElementById('moe-toggle');
+    const moeOptions = document.getElementById('moe-options');
+    const moeTypeToggleLabels = document.querySelectorAll('.moe-type-select > .toggle-label');
+
+    if (moeToggle) {
+        moeToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                // MoE is selected
+                moeOptions.style.display = 'block';
+                moeTypeToggleLabels[0].classList.remove('active');
+                moeTypeToggleLabels[1].classList.add('active');
+            } else {
+                // FFN is selected
+                moeOptions.style.display = 'none';
+                moeTypeToggleLabels[0].classList.add('active');
+                moeTypeToggleLabels[1].classList.remove('active');
+            }
+        });
+        // Set initial state (FFN active by default)
+        moeTypeToggleLabels[0].classList.add('active');
+    }
+
+    // Auto-select all text on focus for MoE inputs so the user doesn't have to triple click...
+    const moeInputs = document.querySelectorAll('#num-experts, #experts-per-token');
+    moeInputs.forEach(input => {
+        input.addEventListener('focus', function () {
+            this.select();
+        });
+    });
+
     // Set TikToken button
     if (setTiktokenBtn) {
         setTiktokenBtn.addEventListener('click', async () => {
@@ -256,6 +288,9 @@ document.addEventListener('DOMContentLoaded', () => {
             max_seq_length: parseInt(document.getElementById('max-seq-len')?.value || 256),
             dropout: parseFloat(document.getElementById('dropout')?.value || 0.0),
             vocab_size: parseInt(document.getElementById('vocab-size')?.value || 50257),
+            use_moe: document.getElementById('moe-toggle')?.checked || false,
+            num_experts: parseInt(document.getElementById('num-experts')?.value || 8),
+            experts_per_token: parseInt(document.getElementById('experts-per-token')?.value || 2),
             epochs: parseInt(document.getElementById('num-epochs')?.value || 75),
             batch_size: parseInt(document.getElementById('batch-size')?.value || 64),
             lr: parseFloat(document.getElementById('learning-rate')?.value || 0.0011),
@@ -286,6 +321,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (document.getElementById('embedding-dim')) document.getElementById('embedding-dim').value = config.embedding_dim || 512;
             if (document.getElementById('max-seq-len')) document.getElementById('max-seq-len').value = config.max_seq_len || 256;
             if (document.getElementById('dropout')) document.getElementById('dropout').value = config.dropout || 0.0;
+
+            const moeToggle = document.getElementById('moe-toggle');
+            const useMoe = config.use_moe === true || config.use_moe === 'true';
+            if (moeToggle) {
+                moeToggle.checked = useMoe;
+                moeToggle.dispatchEvent(new Event('change'));
+            }
+
             if (document.getElementById('num-epochs')) document.getElementById('num-epochs').value = config.num_epochs || 75;
             if (document.getElementById('batch-size')) document.getElementById('batch-size').value = config.batch_size || 64;
             if (document.getElementById('learning-rate')) document.getElementById('learning-rate').value = config.learning_rate || 0.0011;
@@ -299,27 +342,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function resetConfig() {
-        const defaults = {
-            'num-blocks': 8,
-            'num-heads': 8,
-            'embedding-dim': 512,
-            'max-seq-len': 256,
-            'dropout': 0.0,
-            'num-epochs': 75,
-            'batch-size': 64,
-            'learning-rate': 0.0011,
-            'min-lr': 0.000005,
-            'warmup-steps': 500,
-            'save-every': 1
-        };
+    document.getElementById('num-blocks').value = 8;
+    document.getElementById('num-heads').value = 8;
+    document.getElementById('embedding-dim').value = 512;
+    document.getElementById('max-seq-len').value = 256;
+    document.getElementById('dropout').value = 0.0;
 
-        Object.keys(defaults).forEach(key => {
-            const element = document.getElementById(key);
-            if (element) element.value = defaults[key];
-        });
+    // Reset MoE to defaults (FFN mode, but keep expert values)
+    const moeToggle = document.getElementById('moe-toggle');
+    if (moeToggle) {
+        moeToggle.checked = false;
+        moeToggle.dispatchEvent(new Event('change'));
+    }
 
-        localStorage.removeItem('training_config');
-        showTrainingInfo('Configuration reset to defaults', true);
+    document.getElementById('num-experts').value = 8;
+    document.getElementById('experts-per-token').value = 2;
+
+    document.getElementById('num-epochs').value = 75;
+    document.getElementById('batch-size').value = 64;
+    document.getElementById('learning-rate').value = 0.0011;
+    document.getElementById('min-lr').value = 0.000005;
+    document.getElementById('warmup-steps').value = 500;
+    document.getElementById('save-every').value = 1;
+
+    saveConfig();
+    showTrainingInfo('Configuration reset to defaults', true);
     }
 
     function startStatusPolling() {
@@ -633,6 +680,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const vocabSize = parseInt(document.getElementById('vocab-size')?.value || 50257);
         const maxSeqLen = parseInt(document.getElementById('max-seq-len')?.value || 256);
 
+        // MoE Config
+        const useMoe = document.getElementById('moe-toggle').checked;
+        const numExperts = parseInt(document.getElementById('num-experts').value || 8);
+        const expertsPerToken = parseInt(document.getElementById('experts-per-token').value || 2);
+
         // Calculate parameters for a transformer model
         // Token embedding: vocab_size * embedding_dim
         const tokenEmbedding = vocabSize * embeddingDim;
@@ -645,7 +697,30 @@ document.addEventListener('DOMContentLoaded', () => {
         // - Feed-forward: 2 * embedding_dim * (4 * embedding_dim) = 8 * embedding_dim^2
         // - Layer norms: 4 * embedding_dim (2 layer norms per block, each has 2 params per dim)
         const attentionParams = 4 * embeddingDim * embeddingDim;
-        const ffnParams = 8 * embeddingDim * embeddingDim;
+
+        let ffnParams;
+        if (useMoe) {
+            // MoE: Each expert has 2 layers
+            // Router: embedding_dim -> num_experts
+            const expertParams = numExperts * (
+                embeddingDim * (4 * embeddingDim) + // W1
+                (4 * embeddingDim) + // B1
+                (4 * embeddingDim) * embeddingDim + // W2
+                embeddingDim // B2
+            );
+            const routerParams = embeddingDim * numExperts;
+            ffnParams = expertParams + routerParams;
+        } else {
+            // Normal FFN
+            const ffnHiddenDim = 4 * embeddingDim;
+            ffnParams = (
+                embeddingDim * ffnHiddenDim + // W1
+                ffnHiddenDim + // B1
+                ffnHiddenDim * embeddingDim + // W2
+                embeddingDim // B2
+            );
+        }
+
         const layerNormParams = 4 * embeddingDim;
         const paramsPerBlock = attentionParams + ffnParams + layerNormParams;
         const totalBlockParams = numBlocks * paramsPerBlock;
