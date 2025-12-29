@@ -24,10 +24,7 @@ release/
 tmp/
 *.log
 
-concepts/private.md
-
-*implementation*
-*guide*
+private/*
 # =========================
 # Python / runtime artifacts
 # =========================
