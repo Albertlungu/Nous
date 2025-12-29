@@ -62,7 +62,9 @@ class FeedForward():
         self.ff_dim = ff_dim or self.embedding_dim * 4 # Feed Forward dimension
         self.dropout = dropout
 
-        self.key = jax.random.PRNGKey(0)
+        self.key = jax.random.PRNGKey(
+            68157628006304057045295846951897664502295431894160942124012093587298959185368
+            )
 
         k1, k2 = jax.random.split(self.key)
 

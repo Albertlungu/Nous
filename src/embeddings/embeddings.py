@@ -4,9 +4,6 @@ Token embedding layer with positional encoding for transformer models.
 This module implements the embedding layer that converts token IDs to dense vectors
 and adds positional information. The embedding dimensions are typically powers of 2
 (128, 256, 512, 1024).
-
-Reference:
-https://machinelearningmastery.com/a-gentle-introduction-to-positional-encoding-in-transformer-models-part-1/
 """
 import os
 import pickle
@@ -35,12 +32,19 @@ class EmbeddingLayer:
         key (jax.random.PRNGKey): PRNG key from JAX's random module.
         embeddings (jnp.ndarray): Embedding matrix of shape (vocab_size, embedding_dim).
         positional_encoding_class (PositionalEncoding): Instance of PositionalEncoding class.
-        positional_encodings (jnp.ndarray): Positional encodings of shape (max_seq_length, embedding_dim).
+        positional_encodings (jnp.ndarray): Positional encodings of shape
+            (max_seq_length, embedding_dim).
     """
 
     default_embedding_dim = 256
 
-    def __init__(self, vocab_size=None, embedding_dim=None, max_seq_length=256, n=10000, dropout=0.0) -> None:
+    def __init__(self,
+                 vocab_size=None,
+                 embedding_dim=None,
+                 max_seq_length=256,
+                 n=10000,
+                 dropout=0.0
+                 ) -> None:
         """
         Initializes an EmbeddingLayer object.
 
@@ -58,14 +62,22 @@ class EmbeddingLayer:
         self.dropout = dropout
 
         # Create key inside __init__, not at class level
-        self.key = jax.random.PRNGKey(0)
-        self.embeddings = jax.random.normal(self.key, (self.vocab_size, self.embedding_dim)) * 0.02 # Basically, random numbers are selected for the vectors right now as placeholder so that the algorithm doesn't see symmetry and simply assign the same vector values to every word upon training
+        self.key = jax.random.PRNGKey(
+            68157628006304057045295846951897664502295431894160942124012093587298959185368
+            )
+        self.embeddings = jax.random.normal(self.key, (self.vocab_size, self.embedding_dim)) * 0.02
+            # Basically, random numbers are selected for the vectors right now as placeholder
+            # so that the algorithm doesn't see symmetry and simply assign the same
+            # vector values to every word upon training
 
         self.positional_encoding_class = PositionalEncoding(self.embedding_dim, self.max_seq_length)
-        self.positional_encodings = self.positional_encoding_class._create_positional_encoding(n) # using the function that will be declared later to get the positional encoding of a certain word
+        self.positional_encodings = self.positional_encoding_class._create_positional_encoding(n)
+            # using the function that will be declared later to get the positional encoding of a certain word
 
     @staticmethod
-    def pad_token_ids(max_len, token_ids, pad_token_id=None):
+    def pad_token_ids(max_len,
+                      token_ids,
+                      pad_token_id=None):
         """
         Pads token ids
 
@@ -90,7 +102,12 @@ class EmbeddingLayer:
 
 
     @staticmethod
-    def embedding_fwd(params, padded_token_ids, pad_token_id=None, dropout=0.0, training=True, rng_key=None):
+    def embedding_fwd(params,
+                      padded_token_ids,
+                      pad_token_id=None,
+                      dropout=0.0,
+                      training=True,
+                      rng_key=None):
         """
         Forward method of the embedding layer
 
@@ -147,19 +164,24 @@ class EmbeddingLayer:
     # Removed loss_fn method - loss computation is now handled in Trainer
 
 
-    def update(self, grads, learning_rate):
+    def update(self,
+               grads:jnp.ndarray,
+               learning_rate:float
+               ) -> None:
         """
         Updates embedding weights using gradients (added up from all ids)
 
         Args:
+            grads (jnp.ndarray): gradients from the backward pass
             learning_rate (float): rate at which the machine moves forward
-            grads (jnp.jnparray): gradients from the backward pass
         """
         embedding_grads, pos_enc_grads = grads
         self.embeddings -= learning_rate * embedding_grads
         self.positional_encodings -= learning_rate * pos_enc_grads
 
-    def save(self, filepath):
+    def save(self,
+             filepath:str
+             ) -> None:
         """
         Save embeddings to a file
         Args:
@@ -174,7 +196,9 @@ class EmbeddingLayer:
                 'max_seq_length': self.max_seq_length
             }, f)
 
-    def load(self, filepath):
+    def load(self,
+             filepath:str
+             ) -> None:
         """
         Load embeddings from file
         Args:
@@ -188,20 +212,25 @@ class EmbeddingLayer:
             self.max_seq_length = data['max_seq_length']
             self.positional_encodings = self.positional_encoding_class._create_positional_encoding()
 
-    def get_params(self):
+    def get_params(self) -> dict:
         """
-        Get parameters as a dict for JAX functions (consistent with other layers)
+        Get parameters as a dict for JAX functions
+
+        Returns:
+            dict:
+                - embeddings (jnp.ndarray)
+                - positional_encodings (jnp.ndarray)
         """
         return {
             'embeddings': self.embeddings,
             'positional_encodings': self.positional_encodings
         }
 
-    def get_params_and_grads(self):
+    def get_params_and_grads(self) -> tuple[list[int, int], jnp.ndarray]:
         """
         Gets parameters and gradients from embedding class
 
         Returns:
-            tuple(list[int, int], jnp.array): Tuple containing embeddings and positional encodings
+            tuple(list[int, int], jnp.ndarray): Tuple containing embeddings and positional encodings
         """
         return (self.embeddings, self.positional_encodings)
