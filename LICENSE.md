@@ -28,7 +28,7 @@ Any copies or substantial portions of the Software must retain this copyright no
 
 *5. No Trademark or Endorsement Rights*
 
-This license does not grant permission to use the name “[NAME]” or the name of the copyright holder for endorsement, promotion, or branding purposes without prior written consent.
+This license does not grant permission to use the name “Nous” or the name of the copyright holder for endorsement, promotion, or branding purposes without prior written consent.
 
 *7. Disclaimer of Warranty*
 
