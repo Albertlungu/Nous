@@ -1,7 +1,5 @@
 // Training functionality
 
-const { modelDirection } = require("three/tsl");
-
 document.addEventListener('DOMContentLoaded', () => {
     const startTrainingBtn = document.getElementById('start-training-btn');
     const pauseTrainingBtn = document.getElementById('pause-training-btn');
@@ -329,9 +327,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 moeToggle.dispatchEvent(new Event('change'));
             }
 
-            if (document.getElementById('num-epochs')) document.getElementById('num-epochs').value = config.num_epochs || 75;
+            // Restore MoE expert values
+            if (document.getElementById('num-experts')) document.getElementById('num-experts').value = config.num_experts || 8;
+            if (document.getElementById('experts-per-token')) document.getElementById('experts-per-token').value = config.experts_per_token || 2;
+
+            if (document.getElementById('num-epochs')) document.getElementById('num-epochs').value = config.num_epochs || config.epochs || 75;
             if (document.getElementById('batch-size')) document.getElementById('batch-size').value = config.batch_size || 64;
-            if (document.getElementById('learning-rate')) document.getElementById('learning-rate').value = config.learning_rate || 0.0011;
+            if (document.getElementById('learning-rate')) document.getElementById('learning-rate').value = config.learning_rate || config.lr || 0.0011;
             if (document.getElementById('min-lr')) document.getElementById('min-lr').value = config.min_lr || 0.000005;
             if (document.getElementById('warmup-steps')) document.getElementById('warmup-steps').value = config.warmup_steps || 500;
             if (document.getElementById('save-every')) document.getElementById('save-every').value = config.save_every || 1;
