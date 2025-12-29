@@ -5,7 +5,6 @@ This file contains the TransformerStack class, which is used to stack multiple t
     on top of one another.
 """
 
-# TODO: Modify this to use MoE
 
 import jax
 import jax.numpy as jnp

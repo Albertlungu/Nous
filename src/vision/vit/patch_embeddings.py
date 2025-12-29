@@ -10,6 +10,9 @@ import jax.numpy as jnp
 from functools import partial
 
 class PatchEmbedding:
+    """
+    Split images into patches and project these patches onto the embedding dimension
+    """
     def __init__(self,
                  image_size=224,
                  patch_size=16,
