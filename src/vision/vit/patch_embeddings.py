@@ -101,7 +101,7 @@ class PatchEmbedding:
                 params['cls_token'],
                 (batch_size, 1, 1))
             embeddings = jnp.concatenate(
-                [cls_tokens], [patch_embeddings],
+                [cls_tokens, patch_embeddings],
                 axis=1)
 
             embeddings += params['positional_embeddings']
