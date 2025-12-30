@@ -58,46 +58,49 @@ class Trainer:
     """
 
     def __init__(self,
+                 # Tokenizer
                  tokenizer,
                  training_data=None,
                  token_ids=None,
-                 lr=1e-4,
+                 # Basic transformer
                  num_blocks=8,
                  num_heads=8,
                  embedding_dim=512,
                  max_seq_length=256,
+                 # MoE
                  use_moe=True,
                  num_experts=8,
                  experts_per_token=2,
+                 load_balance_coef=0.01,
+                 # Misc
+                 lr=1e-4,
+                 min_lr=0.0,
                  use_lr_schedule=True,
                  warmup_steps=500,
-                 dropout=0.0,
-                 min_lr=0.0,
-                 load_balance_coef=0.01
+                 dropout=0.0
                 ) -> None:
         """
         Initialize Trainer with model architecture.
 
         Args:
-            tokenizer (object): Tokenizer instance (TikToken or BPETokenizer)
-            training_data (list, optional): List of text strings for training. Defaults to None.
-            lr (float, optional): Learning rate. Defaults to 1e-4.
-            num_blocks (int, optional): Number of transformer blocks to stack. Defaults to 8.
-            num_heads (int, optional): Number of attention heads per block.
-            embedding_dim (int, optional): Embedding dimension.
-                                            Must be divisible by num_heads and num_blocks.
-                                            Defaults to 512.
-            max_seq_length (int, optional): Maximum sequence length for chunking. Defaults to 256.
-            use_moe (bool, optional): Whether to use MoE. Defaults to True.
+            tokenizer (object): Tokenizer.
+            training_data (list, optional): The non-tokenized training data. Defaults to None.
+            token_ids (list, optional): The tokenized training data as token ids. Defaults to None.
+            num_blocks (int, optional): Number of transformer blocks. Defaults to 8.
+            num_heads (int, optional): Number of attention heads. Defaults to 8.
+            embedding_dim (int, optional): Embedding dimension. Defaults to 512.
+            max_seq_length (int, optional): Maximum sequence length. Defaults to 256.
+            use_moe (bool, optional): Whether or not to use MoE. Defaults to True.
             num_experts (int, optional): Total number of experts. Defaults to 8.
-            experts_per_token (int, optional): How many experts are active per token. Defaults to 2.
-            use_lr_schedule (bool, optional): Whether to use learning rate warmup and cosine decay.
-                                                Defaults to True.
+            experts_per_token (int, optional): Experts active per token. Defaults to 2.
+            load_balance_coef (float, optional): Weight for auxiliary load balancing loss.
+                                                 Defaults to 0.01.
+            lr (float, optional): Learning rate. Defaults to 1e-4.
+            min_lr (float, optional): Minimum learning rate floor.. Defaults to 0.0.
+            use_lr_schedule (bool, optional): Whether or not to use learning rate schedule.
+                                              Defaults to True.
             warmup_steps (int, optional): Number of warmup steps. Defaults to 500.
             dropout (float, optional): Dropout probability. Defaults to 0.0.
-            min_lr (float, optional): Minimum learning rate floor. Defaults to 0.0.
-            load_balance_coef (float, optional): Weight for auxiliary load balancing loss.
-                                                    Defaults to 0.01.
         """
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length

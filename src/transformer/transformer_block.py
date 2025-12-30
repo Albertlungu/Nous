@@ -155,11 +155,7 @@ class TransformerBlock:
             2. LayerNorm → FeedForward → Add residual
 
         Args:
-            params (dict): Contains all parameters:
-                - 'attn': attention parameters
-                - 'ffn': feed-forward parameters
-                - 'gamma_1', 'beta_1': first LayerNorm params
-                - 'gamma_2', 'beta_2': second LayerNorm params
+            params (dict): Contains all parameters.
             x (jnp.ndarray): Input embeddings (batch, seq_len, embedding_dim)
             num_heads (int): Number of attention heads
             head_dim (int): Dimension per head
