@@ -31,6 +31,7 @@ from src.embeddings.embeddings import EmbeddingLayer
 from src.transformer.multi_head_attention import MultiHeadAttention
 from src.transformer.feed_forward import FeedForward
 from src.transformer.mixture_of_experts import MOE
+from src.transformer.cross_attention import CrossAttention
 
 
 class TransformerBlock:
@@ -236,6 +237,138 @@ class TransformerBlock:
         final_output = residual_2 + ff_output
 
         return final_output, aux_loss
+
+    @staticmethod
+    @jax.jit
+    def fwd_with_x_attn(params:dict,
+            x:jnp.ndarray,
+            encoder_outputs:jnp.ndarray,
+            num_heads:int,
+            head_dim:int,
+            embedding_dim:int,
+            num_experts=8,
+            experts_per_token=2,
+            dropout=0.0,
+            training=True,
+            rng_key=None
+            ) -> tuple[jnp.ndarray, float, jnp.ndarray]:
+        """
+        Forward pass with cross-attention for a multimodal transformer
+
+        Flow (3 sublayers instead of 2):
+            1. LayerNorm -> Self-Attention (MHA: text->text) -> Residual
+            2. LayerNorm -> CrossAttention (text->image) -> Residual
+            3. LayerNorm -> FFN -> Residual
+
+        Args:
+            params (dict): Parameters, including 'cross_attn' key with cross-attention params.
+            x (jnp.ndarray): Decoder embeddings (text).
+                             Shape: (batch, seq_len_dec, embedding_dim)
+            encoder_outputs (jnp.ndarray): Encoder outputs (image).
+                                           Shape: (batch, num_patches, embedding_dim)
+            num_heads (int): Number of attention heads
+            head_dim (int): Dimension per head
+            embedding_dim (int): Total embedding dimension
+            num_experts (int, optional): Total number of experts. Defaults to 8.
+            experts_per_token (int, optional): How many experts are used for each token.
+                                                Defaults to 2.
+            dropout (float, optional): Dropout probability. Defaults to 0.0.
+            training (bool, optional): If the model is in training. Defaults to True.
+            rng_key (jax.random.PRNGkey, optional): JAX PRNG key. Defaults to None.
+
+        Returns:
+            tuple[jnp.ndarray, float, jnp.ndarray]: (output, aux_loss, cross_attn_weights)
+        """
+
+        if rng_key is not None:
+            rng_attn, rng_cross, rng_ffn = jax.random.split(rng_key, 3)
+        else:
+            rng_attn, rng_cross, rng_ffn = None, None, None
+
+        # ==== Sublayer 1 - Self-Attention ====
+        residual_1 = x
+        ln1_out = TransformerBlock.layer_norm(x, params['gamma_1'], params['beta_1'])
+
+        attn_output = MultiHeadAttention.fwd(
+            params['attn'],
+            ln1_out,
+            num_heads,
+            head_dim,
+            embedding_dim,
+            dropout=dropout,
+            training=training,
+            rng_key=rng_attn
+        )
+
+        # Residual dropout on attention output
+        if training and dropout > 0.0 and rng_attn is not None:
+            keep_prob = 1.0 - dropout
+            dropout_mask = jax.random.bernoulli(rng_attn, keep_prob, attn_output.shape)
+            attn_output = jnp.where(dropout_mask, attn_output / keep_prob, 0.0)
+
+        after_self_attn = residual_1 + attn_output
+
+        # ===== Sublayer 2 - Cross-Attention (x-attn) =======
+
+        residual_2 = after_self_attn
+
+        ln2_out = TransformerBlock.layer_norm(
+            after_self_attn,
+            params['gamma_cross'],
+            params['beta_cross']
+        )
+
+        cross_attn_output, cross_attn_weights = CrossAttention.fwd(
+            params['cross_attn'],
+            ln2_out,
+            encoder_outputs,
+            num_heads,
+            head_dim,
+            embedding_dim
+        )
+
+        if training and dropout > 0.0 and rng_cross is not None:
+            keep_prob = 1.0 - dropout
+            dropout_mask = jax.random.bernoulli(rng_cross, keep_prob, cross_attn_output.shape)
+            cross_attn_output = jnp.where(dropout_mask, cross_attn_output / keep_prob, 0.0)
+
+        after_cross_attn = residual_2 + cross_attn_output
+
+        # ===== Sublayer 3 - FFN =====
+
+        residual_3 = after_cross_attn
+
+        ln3_out = TransformerBlock.layer_norm(
+            after_cross_attn,
+            params['gamma_2'],
+            params['beta_2']
+        )
+
+        if 'moe' in params:
+            ff_output, aux_loss = MOE.fwd(
+                params['moe'],
+                ln3_out,
+                num_experts=num_experts,
+                experts_per_token=experts_per_token,
+                activation='gelu',
+                training=training,
+                dropout=dropout,
+                key=rng_ffn
+            )
+        else:
+            ff_output = FeedForward.fwd(
+                params['ffn'],
+                ln3_out,
+                dropout=dropout,
+                training=training,
+                rng_key=rng_ffn
+            )
+            aux_loss = 0.0
+
+        final_output = residual_3 + ff_output
+
+        return final_output, aux_loss, cross_attn_weights
+
 
     @staticmethod
     @partial(jax.jit, static_argnums=(2, 3, 4))
