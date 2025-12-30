@@ -93,12 +93,6 @@ class ViTEncoder:
     @jax.jit
     def fwd(params:dict,
             images:jnp.ndarray,
-            head_dim:int,
-            num_heads=8,
-            num_blocks=8,
-            embedding_dim=512,
-            num_experts=8,
-            experts_per_token=2
             ) -> tuple[jnp.ndarray, float]:
         """
         Forward pass through ViT encoder
