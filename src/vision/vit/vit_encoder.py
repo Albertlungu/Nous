@@ -5,6 +5,8 @@ Vision Transformer (ViT) encoder for processing image patches.
 Reuses existing TransformerBlock.
 """
 
+# TODO: Add encode method
+
 import os
 import sys
 
