@@ -116,7 +116,7 @@ class CrossAttention:
 
         # Transpose to (batch, num_heads, seq_len, head_dim)
         Q = Q.transpose(0, 2, 1, 3)
-        W = V.transpose(0, 2, 1, 3)
+        K = K.transpose(0, 2, 1, 3)
         V = V.transpose(0, 2, 1, 3)
 
         # Scaled dot-product attention
