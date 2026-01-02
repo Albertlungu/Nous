@@ -19,7 +19,6 @@ import sys
 import gc
 import time as t
 import pickle
-import functools
 from datetime import datetime
 
 sys.path.append(
@@ -505,7 +504,7 @@ class Trainer:
 
         Args:
             grads (dict): Gradients from compute_loss_and_grads()
-                         Format: {'embeddings': dict, 'stack': list, 'output': dict}
+                          Format: {'embeddings': dict, 'stack': list, 'output': dict}
         """
         # Get current parameters as pytree
         params_pytree = self._flatten_params()
@@ -547,7 +546,8 @@ class Trainer:
             base_path (str): Base checkpoint path (e.g., "artifacts/training_logs/checkpoint.pkl")
 
         Returns:
-            str: Timestamped path (e.g., "artifacts/training_logs/checkpoint_2025-01-11_14-30-45.pkl")
+            str: Timestamped path
+                 (e.g., "artifacts/training_logs/checkpoint_2025-01-11_14-30-45.pkl")
         """
         # Get current timestamp
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -568,7 +568,8 @@ class Trainer:
               checkpoint_path:str,
               batch_size=32,
               save_every=1,
-              prompt=""):
+              prompt=""
+              ) -> None:
         """
         Train the model with JAX autodiff.
         Automatically saves checkpoints with timestamps.
@@ -771,7 +772,7 @@ class Trainer:
 
         return param_counts
 
-    def print_model_summary(self):
+    def print_model_summary(self) -> None:
         """
         Print a summary of the model architecture and parameter counts.
         """
@@ -915,7 +916,7 @@ class Trainer:
 
         return metadata
 
-    def save_checkpoint(self, path=None) -> None:
+    def save_checkpoint(self, path:str) -> None:
         """
         Save model parameters AND optimizer state to file (for resuming training).
 
@@ -950,7 +951,7 @@ class Trainer:
         with open(path, "wb") as f:
             pickle.dump(checkpoint, f)
 
-    def save_model_only(self, path=None) -> None:
+    def save_model_only(self, path:str) -> None:
         """
         Save ONLY model weights (smaller file, for inference only).
 
@@ -980,7 +981,7 @@ class Trainer:
 
         print(f"Model saved to {path} (weights only, no optimizer state)")
 
-    def save_model_npz(self, path=None) -> None:
+    def save_model_npz(self, path:str) -> None:
         """
         Save model weights as compressed NumPy arrays (smallest file size).
 
@@ -1028,7 +1029,7 @@ class Trainer:
         np.savez_compressed(path, **save_dict, config=config)
         print(f"Model saved to {path} (compressed NPZ format)")
 
-    def load_checkpoint(self, path=None) -> None:
+    def load_checkpoint(self, path:str) -> None:
         """
         Load model parameters from file.
 
@@ -1252,7 +1253,7 @@ class Trainer:
 
         Args:
             batch_size (int, optional): Batch size. Try to keep as an exponent/multiple of 2.
-                Defaults to 32.
+                                        Defaults to 32.
 
         Returns:
             list: Contains batches of token ids.
@@ -1286,7 +1287,7 @@ class Trainer:
             batch_size (int, optional): Token batch size. Defaults to 32.
             save_every (int, optional): After how many epochs to save checkpoint. Defaults to 5.
             prompt (str, optional): Training prompt for sequential inference testing.
-                Defaults to "".
+                                    Defaults to "".
         """
         print(f"Loading checkpoint from {checkpoint_path}...")
         self.load_checkpoint(checkpoint_path)
