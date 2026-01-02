@@ -468,7 +468,7 @@ class Trainer:
     def compute_loss_and_grads(self,
                                token_ids:jnp.ndarray,
                                targets:jnp.ndarray
-                               ) -> tuple[any, dict]:
+                               ) -> tuple[float, dict]:
         """
         Compute loss and ALL gradients using JIT-compiled JAX autodiff.
 

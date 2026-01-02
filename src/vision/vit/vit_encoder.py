@@ -5,7 +5,6 @@ Vision Transformer (ViT) encoder for processing image patches.
 Reuses existing TransformerBlock.
 """
 
-# TODO: Add encode method
 
 import os
 import sys
@@ -119,10 +118,17 @@ class ViTEncoder:
         current = patch_embeddings
         total_aux_loss = 0.0
 
-        current, total_aux_loss = TransformerBlock.fwd(
-            params['transformer_stack'],
-            patch_embeddings
-        )
+        for i, block_params in enumerate(params['transformer_stack']['blocks']):
+            current, aux_loss = TransformerBlock.fwd(
+                block_params,
+                current,
+                num_heads=params['num_heads'],
+                head_dim=params['head_dim'],
+                embedding_dim=params['embedding_dim'],
+                num_experts=params['num_experts'],
+                experts_per_token=params['experts_per_token']
+            )
+            total_aux_loss += aux_loss
 
         final_output = TransformerBlock.layer_norm(
             current,
