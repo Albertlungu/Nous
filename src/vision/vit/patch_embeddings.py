@@ -1,5 +1,5 @@
 """
-src/vision/vit/patch_embeddings.py
+./src/vision/vit/patch_embeddings.py
 
 Converts images into sequences of patch embeddings for Vision Transformer (ViT)
 """
@@ -13,12 +13,13 @@ class PatchEmbedding:
     """
     Split images into patches and project these patches onto the embedding dimension
     """
-    def __init__(self,
-                 image_size=224,
-                 patch_size=16,
-                 in_channels=3,
-                 embedding_dim=256
-                 ) -> None:
+    def __init__(
+            self,
+            image_size=224,
+            patch_size=16,
+            in_channels=3,
+            embedding_dim=256
+            ) -> None:
         """
         Initializing the PatchEmbedding class.
 
@@ -63,59 +64,60 @@ class PatchEmbedding:
             (1, self.num_patches + 1, embedding_dim) # +1 for CLS token
         ) * scale
 
-        @staticmethod
-        @partial(jax.jit, static_argnums=(0, 1, 3, 2, 4, 5))
-        def fwd(params:dict,
-                images:jnp.ndarray
-                ) -> jnp.ndarray:
-            """
-            Forward pass: image -> patches -> embeddings
+    @staticmethod
+    @partial(jax.jit, static_argnums=(0, 1, 3, 2, 4, 5))
+    def fwd(
+        params:dict,
+        images:jnp.ndarray
+        ) -> jnp.ndarray:
+        """
+        Forward pass: image -> patches -> embeddings
 
-            Args:
-                params (dict): Contains 'projection', 'cls_token', 'positional_embeddings',
-                               'patch_size'.
-                images (jnp.ndarray): A batch of images. Shape: (batch, height, width, channels)
+        Args:
+            params (dict): Contains 'projection', 'cls_token', 'positional_embeddings',
+                            'patch_size'.
+            images (jnp.ndarray): A batch of images. Shape: (batch, height, width, channels)
 
-            Returns:
-                jnp.ndarray: Patch embeddings. Shape (batch, num_patches + 1, embedding_dim)
-            """
-            batch_size, h, w, channels = images.shape
-            patch_size = params['patch_size']
+        Returns:
+            jnp.ndarray: Patch embeddings. Shape (batch, num_patches + 1, embedding_dim)
+        """
+        batch_size, h, w, channels = images.shape
+        patch_size = params['patch_size']
 
-            ph = h // patch_size # number of patches height
-            pw = w // patch_size # number of patches width
+        ph = h // patch_size # number of patches height
+        pw = w // patch_size # number of patches width
 
-            patches = images.reshape(
-                batch_size,
-                ph, patch_size,
-                pw, patch_size,
-                channels
-            )
+        patches = images.reshape(
+            batch_size,
+            ph, patch_size,
+            pw, patch_size,
+            channels
+        )
 
-            patches = patches.transpose(0, 1, 3, 2, 4, 5)
-            patches = patches.reshape(batch_size, ph * pw, -1)
+        patches = patches.transpose(0, 1, 3, 2, 4, 5)
+        patches = patches.reshape(batch_size, ph * pw, -1)
 
-            patch_embeddings = patches @ params['projection']
+        patch_embeddings = patches @ params['projection']
 
-            cls_tokens = jnp.tile(
-                params['cls_token'],
-                (batch_size, 1, 1))
-            embeddings = jnp.concatenate(
-                [cls_tokens, patch_embeddings],
-                axis=1)
+        cls_tokens = jnp.tile(
+            params['cls_token'],
+            (batch_size, 1, 1))
+        embeddings = jnp.concatenate(
+            [cls_tokens, patch_embeddings],
+            axis=1)
 
-            embeddings += params['positional_embeddings']
+        embeddings += params['positional_embeddings']
 
-            return embeddings
+        return embeddings
 
 
-        def get_params(self) -> dict:
-            """
-            Get parameters for JAX functions
-            """
-            return {
-                'projection': self.projection,
-                'cls_token': self.cls_token,
-                'positional_embeddings': self.positional_embeddings,
-                'patch_size': self.patch_size
-            }
+    def get_params(self) -> dict:
+        """
+        Get parameters for JAX functions
+        """
+        return {
+            'projection': self.projection,
+            'cls_token': self.cls_token,
+            'positional_embeddings': self.positional_embeddings,
+            'patch_size': self.patch_size
+        }
