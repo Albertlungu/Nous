@@ -1,5 +1,5 @@
 """
-src/transformer/feed_forward.py
+./src/transformer/feed_forward.py
 
 Defines the FeedForward class, a two-layer feed-forward network used in transformer architectures.
 The network applies a linear transformation, a gelu activation, and another linear transformation to
@@ -25,37 +25,25 @@ from src.training.loss_function import CrossEntropyLoss
 class FeedForward():
     """
     A FeedForward neural network module used within transformer architectures.
-
-    This class implements a two-layer feed-forward network with gelu activation.
-    It takes token embeddings as input and applies a linear transformation followed
-    by a non-linear activation and another linear transformation to produce the output.
-
-    Key components:
-    - Two sets of weights and biases (W1, B1 for the first layer, W2, B2 for the second layer).
-    - gelu activation function.
-    - Forward and backward passes for training with gradient descent.
     """
 
-
-    def __init__(self, embeddings: EmbeddingLayer, ff_dim = 0, num_blocks=1, dropout=0.0) -> None:
+    def __init__(
+            self,
+            embeddings:EmbeddingLayer,
+            ff_dim:int,
+            num_blocks=8,
+            dropout=0.0
+            ) -> None:
         """
         Initializes the FeedForward network.
 
         Args:
-            token_ids (list): List of token IDs representing input sequences.
             embeddings (EmbeddingLayer): An instance of EmbeddingLayer to convert token
-                IDs to embeddings.
-
-        Attributes:
-            embedding_dim (int): Dimensionality of the embeddings.
-            ff_dim (int): Dimensionality of the feed-forward hidden layer (4 times embedding_dim).
-            W1 (jnp.ndarray): Weight matrix for the first linear layer.
-                Shape (embedding_dim, ff_dim).
-            B1 (jnp.ndarray): Bias vector for the first linear layer. Shape: (ff_dim).
-            W2 (jnp.ndarray): Weight matrix for the second linear layer
-                Shape: (ff_dim, embedding_dim).
-            B2 (jnp.ndarray): Bias vector for the second linear layer Shape: (embedding_dim).
-            ff_input (jnp.ndarray): Input embeddings to the feed-forward network.
+                                         IDs to embeddings.
+            ff_dim (int): FeedForward dimension if the user wants to customize it. By default, it is
+                          4 * embedding_dim.
+            num_blocks (int, optional): Number of transformer blocks. Defaults to 8.
+            dropout (float, optional): Dropout probability. Defaults to 0.0.
         """
         # Use the actual embedding dimension from the embeddings instance, not the class default
         self.embedding_dim = embeddings.embedding_dim
@@ -73,12 +61,14 @@ class FeedForward():
 
         # Layers with proper initialization
         scale = 0.02
-        self.W1 = jax.random.normal(k1, (self.embedding_dim, self.ff_dim)) * scale # Weight first layer
+        self.W1 = jax.random.normal(k1, (self.embedding_dim, self.ff_dim)) * scale
+        # Weight first layer
         self.B1 = jnp.zeros(self.ff_dim) # Bias first layer
 
         # W2 is a residual projection, scale by depth
         residual_scale = scale / jnp.sqrt(2.0 * num_blocks)
-        self.W2 = jax.random.normal(k2, (self.ff_dim, self.embedding_dim)) * residual_scale # Weight second layer with residual scaling
+        self.W2 = jax.random.normal(k2, (self.ff_dim, self.embedding_dim)) * residual_scale
+        # Weight second layer with residual scaling
         self.B2 = jnp.zeros(self.embedding_dim) # Bias second layer
 
     @staticmethod
@@ -107,13 +97,23 @@ class FeedForward():
         return jnp.maximum(0, x)
 
     @staticmethod
-    def fwd(params, x, dropout=0.0, training=True, rng_key=None) -> jnp.ndarray:
+    @jax.jit
+    def fwd(
+        params:dict,
+        x:jnp.ndarray,
+        dropout=0.0,
+        training=True,
+        rng_key=None
+        ) -> jnp.ndarray:
         """
         Static forward pass for use in JAX autodiff (called from TransformerBlock.fwd).
 
         Args:
-            params (dict): Dictionary containing 'W1', 'B1', 'W2', 'B2'
-            x (jnp.ndarray): Input array of shape (batch_size, seq_len, embedding_dim)
+            params (dict): Dictionary containing 'W1', 'B1', 'W2', 'B2'.
+            x (jnp.ndarray): Input array of shape (batch_size, seq_len, embedding_dim).
+            dropout (int, optional): Dropout probability. Defaults to 0.0.
+            training (bool, optional): Whether in training or not. Defaults to True.
+            rng_key (jax.random.PRNGKey, optional): Random number generation key. Defaults to None.
 
         Returns:
             jnp.ndarray: Output array of shape (batch_size, seq_len, embedding_dim)
@@ -129,8 +129,10 @@ class FeedForward():
 
         return output
 
-    @jax.jit
-    def fwd_instance(self, x) -> jnp.ndarray:
+    def fwd_instance(
+        self,
+        x:jnp.ndarray
+        ) -> jnp.ndarray:
         """
         Performs the forward pass of the feed-forward network.
 
@@ -145,7 +147,11 @@ class FeedForward():
         output = activated @ self.W2 + self.B2
         return output
 
-    def compute_grads(self, x, target_ids) -> dict:
+    def compute_grads(
+            self,
+            x:jnp.ndarray,
+            target_ids:jnp.ndarray
+            ) -> dict:
         """
         Computes gradients of the mean squared error loss w.r.t. the weights and biases.
 
@@ -171,7 +177,10 @@ class FeedForward():
             'dB2': grads[3]
         }
 
-    def get_params_and_grads(self, grads) -> list[dict]:
+    def get_params_and_grads(
+            self,
+            grads:dict
+            ) -> list[dict]:
         """
         Getting parameters and gradients for feedforward network
 

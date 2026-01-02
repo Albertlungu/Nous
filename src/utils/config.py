@@ -1,5 +1,5 @@
 """
-src/utils/config.py
+./src/utils/config.py
 
 Ensures all jnp array elements have type jnp.float16
 """

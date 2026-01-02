@@ -1,4 +1,6 @@
 """
+./src/training/loss_function.py
+
 Loss function class that calculates loss of the model using Cross Entropy Loss. This shows how wrong
     the predictions are. The lower the number, the better the model is able to predict.
 """
@@ -8,17 +10,21 @@ import sys
 
 import jax # pylint: disable=no-member
 import jax.numpy as jnp # pylint: disable=no-member
-import numpy as np
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 class CrossEntropyLoss:
     """
     Function that tells the model how wrong its predictions are.
-    Cross-entropy measures the difference between the model's prediction (from output_layer) and the true next token.
+    Cross-entropy measures the difference between the model's prediction
+        (from output_layer) and the true next token.
     """
-    def __init__(self, ignore_index = None, reduction = 'mean'):
+    def __init__(
+            self,
+            ignore_index=None,
+            reduction='mean'
+            ) -> None:
         """
-        Initializing CrossEntropyLoss instance attributes
+        Initializing CrossEntropyLoss.
 
         Args:
             ignore_index (int, optional): Which index to ignore. Defaults to None.
@@ -29,21 +35,33 @@ class CrossEntropyLoss:
         self.grad_fn = jax.grad(self.fwd)
 
     @staticmethod
-    def fwd(logits, targets, reduction = 'mean', ignore_index = None, ignore_indices = None, eos_weight = None, eos_token_id = None):
+    @jax.jit
+    def fwd(
+        logits:jnp.ndarray,
+        targets:jnp.ndarray,
+        ignore_indices:list,
+        ignore_index:int,
+        reduction='mean',
+        eos_weight=1.0,
+        eos_token_id=None
+        ) -> float:
         """
         Forward pass for the cross entropy loss function. Calculates the actual loss for each token.
 
         Args:
             logits (jnp.ndarray): Output of the OutputLayer class.
-            targets (jnp.ndarray): The true "next-token" index that the model is supposed to predict. Shape: (batch, seq_len)
-            reduction (str): Type of reduction, 'sum' or 'mean'. Defaults to 'mean'.
-            ignore_index (int, optional): Single index to ignore. Defaults to None.
-            ignore_indices (list, optional): Multiple indices to ignore (e.g., [0, 20000] for padding and EOS). Defaults to None.
-            eos_weight (float, optional): Weight for EOS token loss (e.g., 0.1 to downweight). Defaults to None (weight of 1.0).
-            eos_token_id (int, optional): EOS token ID to apply weight to. Required if eos_weight is specified.
+            targets (jnp.ndarray): The true "next-token" index that the model is supposed
+                                   to predict. Shape: (batch, seq_len)
+            ignore_indices (list): Multiple indices to ignore (e.g., [0, 20000] for padding and EOS.
+            ignore_index (int): Single index to ignore.
+            reduction (str, optional): Type of reduction, 'sum' or 'mean'. Defaults to 'mean'.
+            eos_weight (float, optional): Weight for EOS token loss (e.g., 0.1 to downweight).
+                                          Defaults to 1.0.
+            eos_token_id (int, optional): EOS token ID to apply weight to.
+                                          Required if eos_weight is specified. Defaults to None.
 
         Returns:
-            jnp.float64: Loss of the model
+            float: Loss of the model.
 
         Raises:
             TypeError

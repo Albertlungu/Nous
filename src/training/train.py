@@ -1,4 +1,6 @@
 """
+./src/training/train.py
+
 JAX-based trainer for transformer language model with stacked blocks.
 
 Key features:

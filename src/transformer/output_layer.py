@@ -1,5 +1,5 @@
 """
-src/transformer/output_layer.py
+./src/transformer/output_layer.py
 
 Defines the OutputLayer class for a transformer model.
 
@@ -29,15 +29,11 @@ from src.embeddings.embeddings import EmbeddingLayer
 class OutputLayer:
     """
     Output Layer of the transformer
-
-    Attributes:
-        embedding_layer (object): Instance of the EmbeddingLayer class
-        embedding_dim (int): Embedding dimension
-        vocab_size (int): Vocabulary size from tokenizer
-        W_out (jnp.array[int, int]): Weight matrix, based on embedding_dim and vocab_size
-        b_out (jnp.array[int]): Bias vector, shape: (vocab_size)
     """
-    def __init__(self, embedding_layer: EmbeddingLayer) -> None:
+    def __init__(
+            self,
+            embedding_layer: EmbeddingLayer
+            ) -> None:
         """
         Initializes instance attributes for OutputLayer class.
 
@@ -53,9 +49,10 @@ class OutputLayer:
         self.b_out = jnp.zeros(self.vocab_size) # Bias vector
 
     @staticmethod
-    def fwd(params:dict,
-            transformer_output:jnp.ndarray
-            ) -> jnp.ndarray:
+    def fwd(
+        params:dict,
+        transformer_output:jnp.ndarray
+        ) -> jnp.ndarray:
         """
 
         Args:
@@ -83,10 +80,11 @@ class OutputLayer:
             'b_out': self.b_out
         }
 
-    def compute_grads(self,
-                    transformer_output:jnp.ndarray,
-                    d_output:jnp.ndarray
-                    ) -> tuple[dict, jnp.ndarray]:
+    def compute_grads(
+            self,
+            transformer_output:jnp.ndarray,
+            d_output:jnp.ndarray
+            ) -> tuple[dict, jnp.ndarray]:
         """
         Backward function
 
@@ -131,10 +129,11 @@ class OutputLayer:
             {'value': self.b_out, 'grad': grads['b_out']}
         ]
 
-    def predict_next_token(self,
-                           transformer_output:jnp.ndarray,
-                           temperature=1.0
-                           ) -> jnp.ndarray:
+    def predict_next_token(
+            self,
+            transformer_output:jnp.ndarray,
+            temperature=1.0
+            ) -> jnp.ndarray:
         """
         Samples the next token from the model's predictions.
 

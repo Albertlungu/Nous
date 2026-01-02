@@ -1,5 +1,5 @@
 """
-src/training/multimodal_train.py
+./src/training/multimodal_train.py
 
 Trainer for multimodal vision->language and vice versa.
 This class will extend the existing Trainer to be able to handle image inputs.
@@ -7,7 +7,6 @@ This class will extend the existing Trainer to be able to handle image inputs.
 
 import os
 import sys
-from functools import partial
 from PIL import Image as PILImage
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))

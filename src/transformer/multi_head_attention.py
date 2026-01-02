@@ -1,5 +1,5 @@
 """
-src/training/multi_head_attention.py
+./src/training/multi_head_attention.py
 
 Multi-head self-attention mechanism implemented with JAX for efficient autodiff and JIT
 compilation.
@@ -10,6 +10,7 @@ allowing the model to jointly attend to information from different representatio
 at different positions.
 """
 
+# TODO: Still have some documentation improvements to make (docstrings)
 import os
 import sys
 from functools import partial
@@ -30,22 +31,14 @@ class MultiHeadAttention:
       (Vaswani et al., 2017). It splits the embedding dimension into multiple attention heads,
       allowing the model to jointly attend to information from different representation subspaces
       at different positions.
-
-      Attributes:
-          embedding_dim (int): Dimensionality of input embeddings (e.g., 256)
-          num_heads (int): Number of parallel attention heads (default: 8)
-          head_dim (int): Dimension per head (embedding_dim // num_heads)
-          W_Q (jnp.ndarray): Query projection matrix, shape (embedding_dim, embedding_dim)
-          W_K (jnp.ndarray): Key projection matrix, shape (embedding_dim, embedding_dim)
-          W_V (jnp.ndarray): Value projection matrix, shape (embedding_dim, embedding_dim)
-          W_O (jnp.ndarray): Output projection matrix, shape (embedding_dim, embedding_dim)
-
       """
-    def __init__(self,
-                embedding_layer: EmbeddingLayer,
-                num_heads=8,
-                num_blocks=1,
-                dropout=0.0) -> None:
+    def __init__(
+            self,
+            embedding_layer: EmbeddingLayer,
+            num_heads=8,
+            num_blocks=8,
+            dropout=0.0
+            ) -> None:
         """
         Initializing MutliHeadAttention
 
@@ -75,14 +68,16 @@ class MultiHeadAttention:
         self.W_O = jax.random.normal(k4, (self.embedding_dim, self.embedding_dim)) * residual_scale
 
     @staticmethod
-    def fwd(params:dict,
-            x:jnp.ndarray,
-            num_heads:int,
-            head_dim:int,
-            embedding_dim:int,
-            dropout=0.0,
-            training=True,
-            rng_key=None) -> jnp.ndarray:
+    def fwd(
+        params:dict,
+        x:jnp.ndarray,
+        num_heads:int,
+        head_dim:int,
+        embedding_dim:int,
+        dropout=0.0,
+        training=True,
+        rng_key=None
+        ) -> jnp.ndarray:
         """
         Pure function for jit computation
 
@@ -145,13 +140,14 @@ class MultiHeadAttention:
 
     @staticmethod
     @partial(jax.jit, static_argnums=(2, 3, 4))
-    def fwd_with_cache(params:dict,
-                       x:jnp.ndarray,
-                       num_heads:int,
-                       head_dim:int,
-                       embedding_dim:int,
-                       past_kv=None
-                       ) -> tuple[jnp.ndarray, tuple[jnp.ndarray, jnp.ndarray]]:
+    def fwd_with_cache(
+        params:dict,
+        x:jnp.ndarray,
+        num_heads:int,
+        head_dim:int,
+        embedding_dim:int,
+        past_kv=None
+        ) -> tuple[jnp.ndarray, tuple[jnp.ndarray, jnp.ndarray]]:
         """
         Fwd pass with KV cache for faster generation
 
@@ -219,7 +215,11 @@ class MultiHeadAttention:
         return out, (K, V)
 
 
-    def compute_grads(self, x:jnp.ndarray, d_output:jnp.ndarray) -> tuple[dict, jnp.ndarray]:
+    def compute_grads(
+            self,
+            x:jnp.ndarray,
+            d_output:jnp.ndarray
+            ) -> tuple[dict, jnp.ndarray]:
         """
         Most efficient version of backprop using JAX's vjp
 
@@ -238,7 +238,10 @@ class MultiHeadAttention:
         grads_params, d_input = vjp_fn(d_output)
         return grads_params, d_input
 
-    def get_params_and_grads(self, grads=None) -> list[dict]:
+    def get_params_and_grads(
+            self,
+            grads=None
+            ) -> list[dict]:
         """
         Return params and grads in the format Trainer expects.
 

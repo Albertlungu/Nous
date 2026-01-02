@@ -1,5 +1,5 @@
 """
-src/transformer/cross_attention.py
+./src/transformer/cross_attention.py
 
 Cross-attention for looking at external context (for example, image features).
 Similar to MHA but queries come from decoder, keys/values from encoder.

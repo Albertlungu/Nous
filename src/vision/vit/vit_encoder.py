@@ -1,5 +1,5 @@
 """
-src/vision/vit/vit_encoder.py
+./src/vision/vit/vit_encoder.py
 
 Vision Transformer (ViT) encoder for processing image patches.
 Reuses existing TransformerBlock.
@@ -25,17 +25,18 @@ class ViTEncoder:
     """
     Vision Transformer encoder.
     """
-    def __init__(self,
-                 image_size=224,
-                 patch_size=16,
-                 in_channels=3,
-                 embedding_dim=256,
-                 num_blocks=8,
-                 num_heads=8,
-                 num_experts=8,
-                 experts_per_token=2,
-                 dropout=0.0
-                 ) -> None:
+    def __init__(
+            self,
+            image_size=224,
+            patch_size=16,
+            in_channels=3,
+            embedding_dim=256,
+            num_blocks=8,
+            num_heads=8,
+            num_experts=8,
+            experts_per_token=2,
+            dropout=0.0
+            ) -> None:
         """
         Initializing the Vision encoder
 
@@ -91,9 +92,10 @@ class ViTEncoder:
 
     @staticmethod
     @jax.jit
-    def fwd(params:dict,
-            images:jnp.ndarray,
-            ) -> tuple[jnp.ndarray, float]:
+    def fwd(
+        params:dict,
+        images:jnp.ndarray,
+        ) -> tuple[jnp.ndarray, float]:
         """
         Forward pass through ViT encoder
 

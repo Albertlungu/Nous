@@ -1,5 +1,5 @@
 """
-src/transformer/mixture_of_experts.py
+./src/transformer/mixture_of_experts.py
 
 Mixture of Experts implementation in JAX for Nous
 """
@@ -18,16 +18,17 @@ class MOE:
     Mixture of Experts implementation
     """
 
-    def __init__(self,
-                embedding_dim=256,
-                ff_dim=None,
-                num_experts=16,
-                experts_per_token=2,
-                num_blocks=2,
-                scale=0.02,
-                dropout=0.0,
-                activation="gelu"
-                ) -> None:
+    def __init__(
+            self,
+            embedding_dim=256,
+            ff_dim=None,
+            num_experts=8,
+            experts_per_token=2,
+            num_blocks=2,
+            scale=0.02,
+            dropout=0.0,
+            activation="gelu"
+            ) -> None:
         """
         Initialization of MoE layer
 
@@ -71,7 +72,10 @@ class MOE:
             self.experts.append(expert)
 
 
-    def _init_expert(self, key:int) -> dict:
+    def _init_expert(
+            self,
+            key:int
+            ) -> dict:
         """
         Create a single expert. Each expert is an entire FFN.
 
@@ -116,7 +120,9 @@ class MOE:
 
         return params
 
-    def set_params(self, params) -> None:
+    def set_params(
+            self,
+            params:dict) -> None:
         """
         Load params from a dictionary.
 
@@ -135,7 +141,7 @@ class MOE:
             }
 
     @staticmethod
-    def gelu(x) -> jnp.ndarray:
+    def gelu(x:jnp.ndarray) -> jnp.ndarray:
         """
         GELU activation function
 
@@ -161,10 +167,11 @@ class MOE:
 
     @staticmethod
     @partial(jax.jit, static_argnums=(2,))
-    def expert_fwd(x:jnp.ndarray,
-                   expert_params:dict,
-                   activation='gelu'
-                   ) -> jnp.ndarray:
+    def expert_fwd(
+        x:jnp.ndarray,
+        expert_params:dict,
+        activation='gelu'
+        ) -> jnp.ndarray:
         """
         Forward pass through a single expert (normal FFN)
 
@@ -193,15 +200,16 @@ class MOE:
 
     @staticmethod
     @partial(jax.jit, static_argnums=(2, 3, 4, 5, 6))
-    def fwd(params:dict,
-            x:jnp.ndarray,
-            num_experts:int,
-            experts_per_token:int,
-            activation='gelu',
-            training=False,
-            dropout=0.0,
-            key=None
-            ) -> tuple[jnp.ndarray, float]:
+    def fwd(
+        params:dict,
+        x:jnp.ndarray,
+        num_experts:int,
+        experts_per_token:int,
+        activation='gelu',
+        training=False,
+        dropout=0.0,
+        key=None
+        ) -> tuple[jnp.ndarray, float]:
         """
         Forward pass through full MoE layer.
 
@@ -285,11 +293,12 @@ class MOE:
 
         return output, aux_loss
 
-    def fwd_instance(self,
-                    x:jnp.ndarray,
-                    training=False,
-                    key=None
-                    ) -> tuple[jnp.ndarray, float]:
+    def fwd_instance(
+            self,
+            x:jnp.ndarray,
+            training=False,
+            key=None
+            ) -> tuple[jnp.ndarray, float]:
         """
         Instance method fwd pass (calls the static fwd() method)
         Args:

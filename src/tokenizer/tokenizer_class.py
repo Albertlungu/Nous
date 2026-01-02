@@ -1,5 +1,5 @@
 """
-src/tokenizer/tokenizer_class.py
+./src/tokenizer/tokenizer_class.py
 
 Custom tokenizer class using Byte-pair encoding.
 
@@ -62,13 +62,19 @@ def extract_wiki_text(xml_path, output_path):
                 f.write(cleaned + "\n")
 
 class BPETokenizer:
-    default_vocab_size = 5000
+    """
+    Custom Byte-Pair Encoding Tokenizer implementation.
+    """
 
-    def __init__(self, vocab_size):
+    def __init__(
+            self,
+            vocab_size:int
+            ) -> None:
         """
         Initializes a BPETokenizer object.
-        If input is None, vocab size is set to 1000.
-            OUTDATED --> No longer uses input, instead, uses harcoded value of 32k vocab size
+
+        Args:
+            vocab_size (int): Vocabulary size.
         """
         self.vocab_size = vocab_size
         self.base_vocab_size = 256
@@ -87,10 +93,6 @@ class BPETokenizer:
     def _rebuild_vocab(self):
         """
         Rebuilds the vocab dictionary based on the merges.
-
-        This function should only be called internally when the merges dictionary is updated.
-        It rebuilds the vocab dictionary by iterating over the merges in ascending order of idx.
-        For each merge, it updates the vocab dictionary with the merged token.
         """
         vocab = {idx: bytes([idx]) for idx in range(self.base_vocab_size)}
         for (p0, p1), idx in sorted(self.merges.items(), key=lambda item: item[1]):
@@ -100,25 +102,34 @@ class BPETokenizer:
     def _ensure_vocab(self):
         """
         Ensures that the vocab dictionary is up-to-date with the merges dictionary.
-
-        If any of the merged token ids are not in the vocab dictionary, this function rebuilds the vocab dictionary by calling _rebuild_vocab.
-
-        This function should only be called internally when the merges dictionary is updated.
         """
         if any(idx not in self.vocab for idx in self.merges.values()):
             self._rebuild_vocab()
 
-    def get_stats(self, input):
+    def get_stats(
+            self,
+            input:list
+            ) -> dict:
         """
         Given a text, returns a dictionary of pair counts.
-        The key is a tuple of two adjacent characters, and the value is the count of that pair.
+
+        Args:
+            input (list): Input token IDs to get stats from.
+
+        Returns:
+            dict: Tokenizer stats.
         """
         counts = {} # initializing counts dictionary
-        for pair in zip(input, input[1:]): # zipping characters that are one next to another (imagine a zipper, how the teeth thread --> this is what zip() does)
+        for pair in zip(input, input[1:]):
             counts[pair] = counts.get(pair, 0) + 1 # counts the amount of adjacent pairs in a text
         return counts
 
-    def merge(self, input, pair, idx):
+    def merge(
+            self,
+            input:list,
+            pair:tuple,
+            idx:int
+            ) -> list:
         """
         Merge a pair of adjacent ids in a list of ids to a single idx.
 
@@ -133,7 +144,7 @@ class BPETokenizer:
         new_input = [] # input after merging adjacent tokens
         i = 0
         while i < len(input):
-            if i < len(input) - 1 and input[i] == pair[0] and input[i + 1] == pair[1]: # checks if the current index is equal to the first element of the pair and the next index is equal to the second element of the pair
+            if i < len(input) - 1 and input[i] == pair[0] and input[i + 1] == pair[1]:
                 new_input.append(idx)
                 i += 2
             else:
@@ -141,14 +152,19 @@ class BPETokenizer:
                 i += 1
         return new_input
 
-    def make_merges(self, input, dataset_length, progress_callback=None):
+    def make_merges(
+            self,
+            input:list,
+            dataset_length:int,
+            progress_callback=None):
         """
-        Merge adjacent ids in a list of ids until the vocab size is reached. Why? This is to increase the vocab size. This is to compress more tokens into a a single token, making the context length more compact, and the model can remember more at a time.
+        Merge adjacent ids in a list of ids until the vocab size is reached.
         Args:
             input (list): The list of ids to merge.
             dataset_length (int): The length of the dataset to consider for merges.
             progress_callback (callable, optional): Callback function to report progress.
-                Called with (current_merge, total_merges)
+                                                    Called with (current_merge, total_merges).
+                                                    Defaults to None.
 
         Returns:
             list: The list of ids with adjacent ids merged until the vocab size is reached.
@@ -197,18 +213,36 @@ class BPETokenizer:
         self._ensure_vocab()
         return input
 
-    def decode(self, ids):
+    def decode(
+            self,
+            ids:list
+            ) -> str:
         """
         Given a list of ids, returns the corresponding text.
+
+        Args:
+            ids (list): Token IDs.
+
+        Returns:
+            str: Decoded token ids.
         """
         self._ensure_vocab()
         tokens = b"".join(self.vocab[idx] for idx in ids)
         text = tokens.decode("utf-8")
         return text
 
-    def encode(self, text):
+    def encode(
+            self,
+            text:str
+            ) -> list:
         """
         Given a string of text, returns the corresponding list of ids.
+
+        Args:
+            text (str): Text to encode tokens from.
+
+        Returns:
+            list: List of encoded token IDs.
         """
         if isinstance(text, list):
             return [self.encode(t) for t in text]
@@ -223,7 +257,7 @@ class BPETokenizer:
             tokens = self.merge(tokens, pair, idx)
         return tokens
 
-def clean_alpaca_text(file_path):
+def clean_alpaca_text(file_path:str):
     """
     Read Alpaca dataset and strip out 'Instruction:', 'Input:', and 'Output:' labels.
     Returns clean text with only the actual content.

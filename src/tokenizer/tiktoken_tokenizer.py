@@ -1,4 +1,6 @@
 """
+./src/tokenizer/tiktoken_tokenizer.py
+
 Using OpenAI's TikToken library to get a powerful and fast tokenizer for better training runs.
 Although you can use the custom BPE tokenizer, this is faster at the actual tokenization process
     and has better vocabulary distributions
@@ -13,18 +15,16 @@ from tqdm import tqdm
 class TikToken:
     """
     TikToken tokenizer class for ease of use.
-
-    Attributes:
-        enc (encoding): Shorthand for tiktoken.get_encoding to make it easier in future code references
-        original_vocab (int): Original vocab size of tokenizer, before padding
-        vocab_size (int): Padded vocab size to something that is divisible by 64
-        _original_vocab_size (int): Size of the original vocab
-        eos_token_id (int): End of sequence token id
-        padding_token_id (int): Padding token id, set to 0
     """
-    def __init__(self, encoding="r50k_base"):
+    def __init__(
+            self,
+            encoding="r50k_base"
+            ) -> None:
         """
-        Initializing Tikotken class
+        Initializing TikToken class.
+
+        Args:
+            encoding (str, optional): Encoding name from TikToken. Defaults to "r50k_base".
         """
         self.enc = tiktoken.get_encoding(encoding)
         original_vocab = self.enc.max_token_value + 1
@@ -33,10 +33,11 @@ class TikToken:
         self.eos_token_id = self.enc.eot_token
         # Use 0 as padding token ID (common convention)
         self.padding_token_id = 0
-        # self.nooutput_token = b"<nooutput>"
-        # self.nooutput_token_ids = self.encode_special(self.nooutput_token)
 
-    def encode(self, text):
+    def encode(
+            self,
+            text:str
+            ) -> list:
         """
         Encode text to token IDs.
 
@@ -48,22 +49,28 @@ class TikToken:
         """
         return self.enc.encode(text)
 
-    def encode_special(self, special_token):
+    def encode_special(
+            self,
+            special_token:bytes
+            ) -> list:
         """
         Method for encoding special tokens
 
         Args:
-            special_token (bytes): special token bytes
+            special_token (bytes): special token bytes.
 
         Returns:
-            list: list of token IDs for the special token
+            list: list of token IDs for the special token.
         """
 
         if isinstance(special_token, str):
             special_token = special_token.encode("utf-8")
         return self.enc.encode_single_token(special_token.decode('utf-8'))
 
-    def decode(self, token_ids):
+    def decode(
+            self,
+            token_ids:list
+            ) -> str:
         """
         Decode token IDs to text.
 
@@ -75,7 +82,10 @@ class TikToken:
         """
         return self.enc.decode(token_ids)
 
-def tokenize_data(input_path:str, output_path:str) -> None:
+def tokenize_data(
+        input_path:str,
+        output_path:str
+        ) -> None:
     """
     Tokenizes training data
 

@@ -1,5 +1,5 @@
 """
-src/optimizers/adam.py
+./src/optimizers/adam.py
 
 JAX implementation of Adam (Adaptive Moment Estimation) Nested optimizer for Nous.
 """
@@ -13,6 +13,9 @@ import numpy as np
 GradientType = Union[jnp.ndarray, Mapping[str, Any], Tuple[Any, ...], List[Any]]
 
 class AdamNested:
+    """
+    AdamNested optimizer
+    """
     def __init__(
             self,
             lr=1e-4,

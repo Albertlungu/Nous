@@ -1,5 +1,5 @@
 """
-src/transformer/transformer_stack.py
+./src/transformer/transformer_stack.py
 
 This file contains the TransformerStack class, which is used to stack multiple transformer blocks
     on top of one another.
@@ -20,25 +20,17 @@ class TransformerStack:
     Implements a sequence of transformer blocks where the output of one block
     feeds into the input of the next. More blocks = more model capacity and
     ability to learn complex patterns.
-
-    Attributes:
-        num_blocks (int): Number of stacked transformer blocks
-        blocks (list): List of TransformerBlock instances
-        embedding_dim (int): Dimension of embeddings
-        num_heads (int): Number of attention heads per block
-            use_moe (bool, optional): Whether to use MoE instead of standard FFN. Defaults to True.
-            num_experts (int, optional): Total number of experts. Defaults to 8.
-            experts_per_token (int, optional): How many experts to use per token. Defaults to 2.
-      """
-    def __init__(self,
-                embedding_layer:EmbeddingLayer,
-                num_blocks=8,
-                num_heads=8,
-                dropout=0.0,
-                use_moe=True,
-                num_experts=8,
-                experts_per_token=2
-                ) -> None:
+    """
+    def __init__(
+            self,
+            embedding_layer:EmbeddingLayer,
+            num_blocks=8,
+            num_heads=8,
+            dropout=0.0,
+            use_moe=True,
+            num_experts=8,
+            experts_per_token=2
+            ) -> None:
         """
         Initialize stack of transformer blocks.
 
@@ -70,7 +62,10 @@ class TransformerStack:
             for _ in range(num_blocks)
         ]
 
-    def fwd(self, x:jnp.ndarray) -> jnp.ndarray:
+    def fwd(
+            self,
+            x:jnp.ndarray
+            ) -> jnp.ndarray:
         """
         Forward pass through all stacked blocks
 
@@ -98,10 +93,11 @@ class TransformerStack:
             total_aux_loss += aux_loss
         return output, total_aux_loss
 
-    def compute_grads(self,
-                      x:jnp.ndarray,
-                      d_output:jnp.ndarray
-                      ) -> list[dict]:
+    def compute_grads(
+            self,
+            x:jnp.ndarray,
+            d_output:jnp.ndarray
+            ) -> list[dict]:
         """
         Backpropagate through all blocks to compute gradients.
 
@@ -139,7 +135,10 @@ class TransformerStack:
 
         return all_grads
 
-    def get_params_and_grads(self, all_grads=None) -> list:
+    def get_params_and_grads(
+            self,
+            all_grads=None
+            ) -> list:
         """
         Collect parameters and gradients from all blocks.
 

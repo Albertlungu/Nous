@@ -1,5 +1,5 @@
 """
-src/transformer/transformer_block.py
+./src/transformer/transformer_block.py
 
 The TransformerBlock class representing a single transformer block, computing both the forward and
     backward pass.
@@ -37,32 +37,18 @@ from src.transformer.cross_attention import CrossAttention
 class TransformerBlock:
     """
     Represents a single transformer block, including attention and MoE layers.
-
-    Attributes:
-        token_ids (list or array): Token indices for the input sequence.
-        embedding_layer (EmbeddingLayer): Embedding layer used to convert token_ids into embeddings.
-        attention_layer (Attention): The attention mechanism for the block.
-        embedding_dim (integer): The size of the vector used to represent each token in the model.
-        input_embeddings (3D tensor): The np.ndarray that represents the
-            input tokens as a vector quantity.
-        ffn (FeedForward): Feedforward network for the block.
-        gamma_1, beta_1: Learnable parameters for first layer normalization.
-        gamma_2, beta_2: Learnable parameters for second layer normalization.
-        attention_output: Output from the attention layer.
-            use_moe (bool, optional): Whether to use MoE instead of standard FFN. Defaults to True.
-            num_experts (int, optional): Total number of experts. Defaults to 8.
-            experts_per_token (int, optional): How many experts to use per token. Defaults to 2.
     """
 
-    def __init__(self,
-                embedding_layer:EmbeddingLayer,
-                num_heads=8,
-                num_blocks=8,
-                dropout=0.0,
-                use_moe=True,
-                num_experts=8,
-                experts_per_token=2
-                ) -> None:
+    def __init__(
+            self,
+            embedding_layer:EmbeddingLayer,
+            num_heads=8,
+            num_blocks=8,
+            dropout=0.0,
+            use_moe=True,
+            num_experts=8,
+            experts_per_token=2
+            ) -> None:
         """
         Initializing instance variables for the TransformerBlock class
 
@@ -107,11 +93,13 @@ class TransformerBlock:
             )
 
     @staticmethod
-    def layer_norm(x:jnp.ndarray,
-                   gamma:jnp.ndarray,
-                   beta:jnp.ndarray,
-                   epsilon=1e-5
-                   ) -> jnp.ndarray:
+    @jax.jit
+    def layer_norm(
+        x:jnp.ndarray,
+        gamma:jnp.ndarray,
+        beta:jnp.ndarray,
+        epsilon=1e-5
+        ) -> jnp.ndarray:
         """
         Layer normalization - normalizes across the feature dimension.
 
@@ -136,17 +124,18 @@ class TransformerBlock:
 
     @staticmethod
     @partial(jax.jit, static_argnums=(2, 3, 4, 5, 6, 7, 8))
-    def fwd(params:dict,
-            x:jnp.ndarray,
-            num_heads:int,
-            head_dim:int,
-            embedding_dim:int,
-            num_experts=8,
-            experts_per_token=2,
-            dropout=0.0,
-            training=True,
-            rng_key=None
-            ) -> tuple[jnp.ndarray, float]:
+    def fwd(
+        params:dict,
+        x:jnp.ndarray,
+        num_heads:int,
+        head_dim:int,
+        embedding_dim:int,
+        num_experts=8,
+        experts_per_token=2,
+        dropout=0.0,
+        training=True,
+        rng_key=None
+        ) -> tuple[jnp.ndarray, float]:
         """
         Forward pass through transformer block (pure function for JIT).
 
@@ -236,18 +225,19 @@ class TransformerBlock:
 
     @staticmethod
     @jax.jit
-    def fwd_with_x_attn(params:dict,
-            x:jnp.ndarray,
-            encoder_outputs:jnp.ndarray,
-            num_heads:int,
-            head_dim:int,
-            embedding_dim:int,
-            num_experts=8,
-            experts_per_token=2,
-            dropout=0.0,
-            training=True,
-            rng_key=None
-            ) -> tuple[jnp.ndarray, float, jnp.ndarray]:
+    def fwd_with_x_attn(
+        params:dict,
+        x:jnp.ndarray,
+        encoder_outputs:jnp.ndarray,
+        num_heads:int,
+        head_dim:int,
+        embedding_dim:int,
+        num_experts=8,
+        experts_per_token=2,
+        dropout=0.0,
+        training=True,
+        rng_key=None
+        ) -> tuple[jnp.ndarray, float, jnp.ndarray]:
         """
         Forward pass with cross-attention for a multimodal transformer
 
@@ -368,13 +358,14 @@ class TransformerBlock:
 
     @staticmethod
     @partial(jax.jit, static_argnums=(2, 3, 4))
-    def fwd_with_cache(params:dict,
-                       x:jnp.ndarray,
-                       num_heads:int,
-                       head_dim:int,
-                       embedding_dim:int,
-                       past_kv=None
-                       ) -> tuple[jnp.ndarray, jnp.ndarray]:
+    def fwd_with_cache(
+        params:dict,
+        x:jnp.ndarray,
+        num_heads:int,
+        head_dim:int,
+        embedding_dim:int,
+        past_kv=None
+        ) -> tuple[jnp.ndarray, jnp.ndarray]:
         """
         Forward pass with KV-cache
 
@@ -440,10 +431,11 @@ class TransformerBlock:
 
         return params
 
-    def compute_grads(self,
-                      x:jnp.ndarray,
-                      d_output:jnp.ndarray
-                      ) -> tuple[dict, jnp.ndarray]:
+    def compute_grads(
+            self,
+            x:jnp.ndarray,
+            d_output:jnp.ndarray
+            ) -> tuple[dict, jnp.ndarray]:
         """
         Compute gradients using JAX autodiff
 
@@ -470,7 +462,10 @@ class TransformerBlock:
         grads_params, d_input = vjp_fn(d_output)
         return grads_params, d_input
 
-    def get_params_and_grads(self, grads=None) -> list[dict]:
+    def get_params_and_grads(
+            self,
+            grads=None
+            ) -> list[dict]:
         """
         Return params and grads in Trainer format
 

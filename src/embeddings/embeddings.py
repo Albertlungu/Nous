@@ -1,4 +1,6 @@
 """
+./src/embeddings/embeddings.py
+
 Token embedding layer with positional encoding for transformer models.
 
 This module implements the embedding layer that converts token IDs to dense vectors
@@ -22,29 +24,18 @@ import src.utils.config
 class EmbeddingLayer:
     """
     Token embedding layer with positional encoding for transformer models.
-
-    Attributes:
-        vocab_size (int): Vocabulary size.
-        embedding_dim (int): Embedding dimension.
-        max_seq_length (int): Maximum sequence length.
-        n (int): Positional encoding frequency parameter.
-        dropout (float): Dropout probability.
-        key (jax.random.PRNGKey): PRNG key from JAX's random module.
-        embeddings (jnp.ndarray): Embedding matrix of shape (vocab_size, embedding_dim).
-        positional_encoding_class (PositionalEncoding): Instance of PositionalEncoding class.
-        positional_encodings (jnp.ndarray): Positional encodings of shape
-            (max_seq_length, embedding_dim).
     """
 
     default_embedding_dim = 256
 
-    def __init__(self,
-                 vocab_size=None,
-                 embedding_dim=None,
-                 max_seq_length=256,
-                 n=10000,
-                 dropout=0.0
-                 ) -> None:
+    def __init__(
+            self,
+            vocab_size=None,
+            embedding_dim=None,
+            max_seq_length=256,
+            n=10000,
+            dropout=0.0
+            ) -> None:
         """
         Initializes an EmbeddingLayer object.
 
@@ -72,12 +63,15 @@ class EmbeddingLayer:
 
         self.positional_encoding_class = PositionalEncoding(self.embedding_dim, self.max_seq_length)
         self.positional_encodings = self.positional_encoding_class._create_positional_encoding(n)
-            # using the function that will be declared later to get the positional encoding of a certain word
+            # using the function that will be declared later to get the
+            # positional encoding of a certain word
 
     @staticmethod
-    def pad_token_ids(max_len,
-                      token_ids,
-                      pad_token_id=None):
+    def pad_token_ids(
+        max_len,
+        token_ids,
+        pad_token_id=None
+        ) -> list:
         """
         Pads token ids
 
@@ -102,12 +96,15 @@ class EmbeddingLayer:
 
 
     @staticmethod
-    def embedding_fwd(params,
-                      padded_token_ids,
-                      pad_token_id=None,
-                      dropout=0.0,
-                      training=True,
-                      rng_key=None):
+    @jax.jit
+    def embedding_fwd(
+        params,
+        padded_token_ids,
+        pad_token_id=None,
+        dropout=0.0,
+        training=True,
+        rng_key=None
+        ) -> tuple[jnp.ndarray, list]:
         """
         Forward method of the embedding layer
 
@@ -140,7 +137,8 @@ class EmbeddingLayer:
         # This converts integer indices to a differentiable operation
         token_ids_one_hot = jax.nn.one_hot(padded_token_ids, vocab_size)  # (batch, seq, vocab)
 
-        # Matrix multiply to get embeddings: (batch, seq, vocab) @ (vocab, embed_dim) = (batch, seq, embed_dim)
+        # Matrix multiply to get embeddings:
+        # (batch, seq, vocab) @ (vocab, embed_dim) = (batch, seq, embed_dim)
         token_embeddings = jnp.einsum('bsv,ve->bse', token_ids_one_hot, embeddings)
         token_embeddings = token_embeddings
 
@@ -164,10 +162,11 @@ class EmbeddingLayer:
     # Removed loss_fn method - loss computation is now handled in Trainer
 
 
-    def update(self,
-               grads:jnp.ndarray,
-               learning_rate:float
-               ) -> None:
+    def update(
+            self,
+            grads:jnp.ndarray,
+            learning_rate:float
+            ) -> None:
         """
         Updates embedding weights using gradients (added up from all ids)
 
@@ -179,9 +178,10 @@ class EmbeddingLayer:
         self.embeddings -= learning_rate * embedding_grads
         self.positional_encodings -= learning_rate * pos_enc_grads
 
-    def save(self,
-             filepath:str
-             ) -> None:
+    def save(
+            self,
+            filepath:str
+            ) -> None:
         """
         Save embeddings to a file
         Args:
@@ -196,9 +196,10 @@ class EmbeddingLayer:
                 'max_seq_length': self.max_seq_length
             }, f)
 
-    def load(self,
-             filepath:str
-             ) -> None:
+    def load(
+            self,
+            filepath:str
+            ) -> None:
         """
         Load embeddings from file
         Args:
