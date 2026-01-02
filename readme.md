@@ -1,7 +1,7 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.11-blue">
-  <img src="https://img.shields.io/badge/NumPy-1.26-orange">
-  <img src="https://img.shields.io/badge/License-GPLv3-blue">
+  <img src="https://img.shields.io/badge/Python-3.10-blue">
+  <img src="https://img.shields.io/badge/JAX-1.26-orange">
+  <img src="https://img.shields.io/badge/License-NNCL-red">
   <img src="https://img.shields.io/badge/AI-LLM-lightblue">
 </p>
 
