@@ -1,22 +1,42 @@
+"""
+src/optimizers/adam.py
+
+JAX implementation of Adam (Adaptive Moment Estimation) Nested optimizer for Nous.
+"""
+
+from typing import Any, Dict, List, Tuple, Union, Mapping
+
 import jax
 import jax.numpy as jnp
-from typing import Any, Dict, List, Tuple, Union
 import numpy as np
 
+GradientType = Union[jnp.ndarray, Mapping[str, Any], Tuple[Any, ...], List[Any]]
+
 class AdamNested:
-    def __init__(self, lr=1e-4, beta1=0.9, beta2=0.999, epsilon=1e-8, warmup_steps=0, total_steps=None, schedule='constant', min_lr=0.0):
+    def __init__(
+            self,
+            lr=1e-4,
+            beta1=0.9,
+            beta2=0.999,
+            epsilon=1e-8,
+            warmup_steps=0,
+            total_steps=0,
+            schedule='constant',
+            min_lr=1e-7
+            ) -> None:
         """
         Adam optimizer with optional learning rate scheduling.
 
         Args:
-            lr: Base learning rate
-            beta1: First moment decay rate
-            beta2: Second moment decay rate
-            epsilon: Small constant for numerical stability
-            warmup_steps: Number of steps for linear warmup (default: 0, no warmup)
-            total_steps: Total training steps for cosine decay (default: None, no decay)
-            schedule: 'constant', 'warmup', or 'warmup_cosine' (default: 'constant')
-            min_lr: Minimum learning rate floor (default: 0.0)
+            lr (float, optional): Base learning rate. Defaults to 1e-4.
+            beta1 (float, optional): First moment decay rate. Defaults to 0.9.
+            beta2 (float, optional): Second moment decay rate. Defaults to 0.999.
+            epsilon (float, optional): Small constant for numerical stability. Defaults to 1e-8.
+            warmup_steps (int, optional): Number of steps for linear warmup. Defaults to 0.
+            total_steps (int, optional): Total training steps for cosine decay. Defaults to 0.
+            schedule (str, optional): 'constant', 'warmup', or 'warmup_cosine'.
+                                       Defaults to 'constant'.
+            min_lr (float): Minimum learning rate floor. Defaults to 1e-7.
         """
         self.base_lr = lr
         self.lr = lr
@@ -37,8 +57,35 @@ class AdamNested:
 
     @staticmethod
     @jax.jit
-    def _adam_step_fn(params, grads, m, v, t, beta1, beta2, lr, epsilon):
-        """Pure JAX function for Adam update (can be JIT compiled)."""
+    def _adam_step_fn(
+        params:Mapping[str, Any],
+        grads:GradientType,
+        m:float,
+        v:float,
+        t:int,
+        beta1:float,
+        beta2:float,
+        lr:float,
+        epsilon:float
+        ) -> tuple[Mapping[str, Any], float, float]:
+        """
+        Update function for Adam optimizer.
+
+        Args:
+            params (Mapping[str, Any]): Mapping containing optimizer parameters.
+            grads (GradientType): The gradients for the parameters.
+            m (float): First moment estimate.
+            v (float): Second moment estimate.
+            t (int): Time step (iteration counter).
+            beta1 (float): First moment decay rate.
+            beta2 (float): Second moment decay rate.
+            lr (float): Base learning rate.
+            epsilon (float): Small constant for numerical stability.
+
+        Returns:
+            tuple[Mapping[str, Any], float, float]: Tuple containing the updated parameters and the
+                                                    new first and second moment estimates.
+        """
         # Update biased first moment estimate
         m_new = beta1 * m + (1 - beta1) * grads
 
@@ -56,8 +103,13 @@ class AdamNested:
 
         return updated_params, m_new, v_new
 
-    def get_lr(self):
-        """Get current learning rate based on schedule and timestep."""
+    def get_lr(self) -> float:
+        """
+        Get current learning rate based on schedule and timestep.
+
+        Returns:
+            float: Learning rate.
+        """
         if self.schedule == 'constant':
             return self.base_lr
 
@@ -90,10 +142,40 @@ class AdamNested:
 
         return self.base_lr
 
-    def _get_state_key(self, path):
+    def _get_state_key(
+            self,
+            path:Tuple[Union[str, int]]
+            ) -> str:
+        """
+        Maps a parameter to an optimizer-state key.
+
+        Args:
+            path (Tuple[Union[str, int]]): Tuple that represents where the optimizer currently is in
+                                           the parameter tree.
+
+        Returns:
+            str: A specific location in path as a string.
+        """
         return str(path)
 
-    def _step_single(self, params, grads, path=()):
+    def _step_single(
+            self,
+            params:Mapping[str, Any],
+            grads:GradientType,
+            path:Tuple[Union[str, int]]
+            ) -> Mapping[str, Any]:
+        """
+        Make a single step through the Adam optimizer.
+
+        Args:
+            params (Mapping[str, Any]): Mapping with Adam parameters.
+            grads (GradientType): The gradients for the parameters.
+            path (Tuple[Union[str, int]]): Tuple that represents where the optimizer currently is in
+                                           the parameter tree.
+
+        Returns:
+            Mapping[str, Any]: Updated parameters after a step through optimizer
+        """
         key = self._get_state_key(path)
 
         if key not in self.state:
@@ -116,7 +198,24 @@ class AdamNested:
 
         return updated_params
 
-    def step(self, params, grads, path=()):
+    def step(
+            self,
+            params:Mapping[str, Any],
+            grads:GradientType,
+            path:Tuple[Union[str, int]]
+            ) -> Union[dict, list, tuple, Any]:
+        """
+        Applies the Adam optimizer to a nested parameter structure.
+
+        Args:
+            params (Mapping[str, Any]): Mapping with Adam parameters.
+            grads (GradientType): The gradients for the parameters
+            path (Tuple[Union[str, int]]): Tuple that represents where the optimizer currently is in
+                                           the parameter tree.
+
+        Returns:
+            Union[dict, list, tuple, Any]: _description_
+        """
         if len(path) == 0:
             self.t += 1
 
@@ -135,4 +234,3 @@ class AdamNested:
 
         else:
             return self._step_single(params, grads, path)
-        
