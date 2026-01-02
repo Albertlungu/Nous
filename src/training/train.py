@@ -719,7 +719,7 @@ class Trainer:
         print("Training complete! Saving final checkpoint...")
         self.save_checkpoint(timestamped_checkpoint)
 
-    def count_parameters(self):
+    def count_parameters(self) -> dict:
         """
         Count total number of trainable parameters in the model.
 
@@ -772,7 +772,9 @@ class Trainer:
         return param_counts
 
     def print_model_summary(self):
-        """Print a summary of the model architecture and parameter counts."""
+        """
+        Print a summary of the model architecture and parameter counts.
+        """
         counts = self.count_parameters()
 
         print("="*60)
@@ -816,10 +818,25 @@ class Trainer:
         print(f"Model Size (float16): ~{size_mb:.2f} MB")
         print("="*60)
 
-    def _generate_metadata(self): # TODO: Add docstring
-        """Generate comprehensive metadata about the model and training."""
-        from datetime import datetime
+    def _generate_metadata(self) -> dict:
+        """
+        Generate comprehensive metadata about the model and training.
 
+        Returns:
+            dict: Metadata dictionary, containing other dictionaries:
+                - model_info (dict): info about the model itself, including name, descriptions,
+                    version, created and updated dates
+                - architecture (dict): specific information about the model architecture,
+                    including parameter counts, parameter breakdown, and other stats
+                - training_data (dict): info about the training data, including the tokenizer type,
+                    total examples, total tokens, etc.
+                - training_config (dict): info about the config that was used in training, meaning
+                    things like batch size, learning rate, optimizer, etc.
+                - training_history (dict): info about the training process, meaning number of
+                    epochs, loss decline, learning rate decline, initial/final loss, etc.
+                - hardware (dict): info about what hardware was used, such as the backend (JAX), the
+                    device (CPU/GPU/TPU), and precision (e.g. float16)
+        """
         # Calculate parameter counts
         counts = self.count_parameters()
 
@@ -834,9 +851,9 @@ class Trainer:
 
         metadata = {
             "model_info": {
-                "name": "PyGPT",
-                "description": "Transformer-based GPT model trained on instruction-following datasets",
-                "version": "1.0",
+                "name": "Nous",
+                "description": "Transformer-based GPT model with text and image interpretation",
+                "version": "1.1",
                 "created_date": datetime.now().strftime("%Y-%m-%d"),
                 "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             },
@@ -849,7 +866,10 @@ class Trainer:
                 "num_heads": self.num_heads,
                 "vocab_size": self.tokenizer.vocab_size,
                 "max_seq_length": self.max_seq_length,
-                "ffn_hidden_dim": self.embedding_dim * 4,
+                "ffn_hidden_dim": self.embedding_dim * 4 if not self.use_moe else None,
+                "use_moe": self.use_moe,
+                "num_experts": self.num_experts if self.use_moe else None,
+                "experts_per_token": self.experts_per_token if self.use_moe else None,
                 "dropout": self.dropout,
                 "parameter_breakdown": {
                     "embedding_layer": counts['embedding'],
@@ -881,8 +901,8 @@ class Trainer:
             "training_history": {
                 "epochs_completed": self.training_history['epochs_completed'],
                 "total_steps": self.training_history['total_steps'],
-                "losses": self.training_history['losses'][-10:] if self.training_history['losses'] else [],  # Last 10 losses
-                "learning_rates": self.training_history['learning_rates'][-10:] if self.training_history['learning_rates'] else [],  # Last 10 LRs
+                "losses": self.training_history['losses'][-50:] if self.training_history['losses'] else [],  # Last 10 losses
+                "learning_rates": self.training_history['learning_rates'][-50:] if self.training_history['learning_rates'] else [],  # Last 10 LRs
                 "initial_loss": self.training_history['losses'][0] if self.training_history['losses'] else None,
                 "final_loss": self.training_history['losses'][-1] if self.training_history['losses'] else None
             },
@@ -895,10 +915,15 @@ class Trainer:
 
         return metadata
 
-    def save_checkpoint(self, path=None): # TODO: Add docstring
+    def save_checkpoint(self, path=None) -> None:
+        """
+        Save model parameters AND optimizer state to file (for resuming training).
+
+        Args:
+            path (str): Path to model checkpoint.
+        """
         if path is None:
             path = get_models_path("training_logs.pkl")
-        """Save model parameters AND optimizer state to file (for resuming training)."""
         checkpoint = {
             'embeddings': self.embedding_layer.embeddings,
             'positional_encodings': self.embedding_layer.positional_encodings,
@@ -925,10 +950,15 @@ class Trainer:
         with open(path, "wb") as f:
             pickle.dump(checkpoint, f)
 
-    def save_model_only(self, path=None): # TODO: Add docstring
+    def save_model_only(self, path=None) -> None:
+        """
+        Save ONLY model weights (smaller file, for inference only).
+
+        Args:
+            path (str): Path to model checkpoint.
+        """
         if path is None:
             path = get_models_path("model.pkl")
-        """Save ONLY model weights (smaller file, for inference only)."""
         model_state = {
             'embeddings': self.embedding_layer.embeddings,
             'positional_encodings': self.embedding_layer.positional_encodings,
@@ -950,11 +980,15 @@ class Trainer:
 
         print(f"Model saved to {path} (weights only, no optimizer state)")
 
-    def save_model_npz(self, path=None): # TODO: Add docstring
+    def save_model_npz(self, path=None) -> None:
+        """
+        Save model weights as compressed NumPy arrays (smallest file size).
+
+        Args:
+            path (str): Path to model checkpoint.
+        """
         if path is None:
             path = get_models_path("model.npz")
-        """Save model weights as compressed NumPy arrays (smallest file size)."""
-        import numpy as np
 
         # Collect all parameters as numpy arrays
         save_dict = {
@@ -994,8 +1028,13 @@ class Trainer:
         np.savez_compressed(path, **save_dict, config=config)
         print(f"Model saved to {path} (compressed NPZ format)")
 
-    def load_checkpoint(self, path="artifacts/model/training_logs.pkl"): # TODO: Add docstring
-        """Load model parameters from file."""
+    def load_checkpoint(self, path=None) -> None:
+        """
+        Load model parameters from file.
+
+        Args:
+            path (str): Path to model checkpoint.
+        """
         print(f"Loading checkpoint from {path}...")
         print("This may take 1-2 minutes for large files...")
 
@@ -1085,10 +1124,10 @@ class Trainer:
                  temperature=0.7,
                  top_k=40,
                  repetition_penalty=1.2,
-                 debug=False):
-        # TODO: Make sure everything here is true (the docstring)
+                 debug=False
+                 ) -> tuple[str, list]:
         """
-        Generate text using the trained model (JAX-based).
+        Generate text using the trained model.
 
         Args:
             prompt (str): Input prompt
@@ -1099,7 +1138,7 @@ class Trainer:
             debug (bool): Print debug information
 
         Returns:
-            str: Generated text (excluding the prompt)
+            tuple[str, list]: tuple containing an empty string (idr why) and the generated tokens
         """
         token_ids = self.tokenizer.encode(prompt)
         token_ids = [min(tid, self.tokenizer.vocab_size - 1) for tid in token_ids]
@@ -1207,21 +1246,17 @@ class Trainer:
         generated_token_ids = token_ids[prompt_length:]
         return "", generated_token_ids
 
-    # def create_batches(self, batch_size=100):
-    #     """Create padded batches."""
-    #     batches = []
-    #     for i in range(0, len(self.token_ids), batch_size):
-    #         batch = self.token_ids[i:i+batch_size]
-    #         max_len = max(len(seq) for seq in batch)
-    #         padded_batches = [
-    #             seq + [0] * (max_len - len(seq))
-    #             for seq in batch
-    #         ]
-    #         batches.append(np.array(padded_batches))
-    #     return batches
+    def create_batches(self, batch_size=32) -> list:
+        """
+        Create padded batches.
 
-    def create_batches(self, batch_size=100): # TODO: Add docstring
-        """Create padded batches."""
+        Args:
+            batch_size (int, optional): Batch size. Try to keep as an exponent/multiple of 2.
+                Defaults to 32.
+
+        Returns:
+            list: Contains batches of token ids.
+        """
         fixed_len = self.max_seq_length
         batches = []
         for i in range(0, len(self.token_ids), batch_size):
@@ -1235,13 +1270,24 @@ class Trainer:
             batches.append(np.array(padded_batches))
         return batches
 
-
     def extend_training(self,
-                        checkpoint_path,
+                        checkpoint_path:str,
                         epochs=10,
-                        batch_size=20,
+                        batch_size=32,
                         save_every=5,
-                        prompt=""): # TODO: Add docstring
+                        prompt=""
+                        ) -> None: # TODO: Add docstring
+        """
+        Method to extend model training from existing checkpoint
+
+        Args:
+            checkpoint_path (str): Path to model checkpoint.
+            epochs (int, optional): Number of epochs to extend training by. Defaults to 10.
+            batch_size (int, optional): Token batch size. Defaults to 32.
+            save_every (int, optional): After how many epochs to save checkpoint. Defaults to 5.
+            prompt (str, optional): Training prompt for sequential inference testing.
+                Defaults to "".
+        """
         print(f"Loading checkpoint from {checkpoint_path}...")
         self.load_checkpoint(checkpoint_path)
 
