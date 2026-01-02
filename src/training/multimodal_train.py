@@ -378,7 +378,7 @@ class MultimodalTrainer(Trainer):
 
         generated = token_ids[prompt_length:]
         return "", generated
-    
+
     def count_parameters(self) -> dict:
         """
         Count total trainable parameters including ViT encoder and cross-attention.
@@ -390,42 +390,49 @@ class MultimodalTrainer(Trainer):
 
         # ==== ViT Encoder Params ====
 
+        param_counts['vit'] = {
+            'vit_patch_embedding': 0,
+            'vit_attention': 0,
+            'vit_feedforward': 0,
+            'vit_ln': 0
+        }
+
         # Patch embeddings
-        param_counts['vit_patch_embedding'] = 0
-        param_counts['vit_patch_embedding'] += self.vit_encoder.patch_embedding.projection.size
-        param_counts['vit_patch_embedding'] += self.vit_encoder.patch_embedding.cls_token.size
-        param_counts['vit_patch_embedding'] += self.vit_encoder.patch_embedding.positional_embeddings.size
+        param_counts[['vit']['vit_patch_embedding']] = 0
+        param_counts[['vit']['vit_patch_embedding']] += self.vit_encoder.patch_embedding.projection.size
+        param_counts[['vit']['vit_patch_embedding']] += self.vit_encoder.patch_embedding.cls_token.size
+        param_counts[['vit']['vit_patch_embedding']] += self.vit_encoder.patch_embedding.positional_embeddings.size
 
         # ViT Transformer Blocks
-        param_counts['vit_attention'] = 0
-        param_counts['vit_feedforward'] = 0
-        param_counts['vit_ln'] = 0
+        param_counts[['vit']['vit_attention']] = 0
+        param_counts[['vit']['vit_feedforward']] = 0
+        param_counts[['vit']['vit_ln']] = 0
 
         for block in self.vit_encoder.transformer_stack.blocks:
             # Attention
-            param_counts['vit_attention'] += block.attention_layer.W_Q.size
-            param_counts['vit_attention'] += block.attention_layer.W_K.size
-            param_counts['vit_attention'] += block.attention_layer.W_V.size
-            param_counts['vit_attention'] += block.attention_layer.W_O.size
+            param_counts[['vit']['vit_attention']] += block.attention_layer.W_Q.size
+            param_counts[['vit']['vit_attention']] += block.attention_layer.W_K.size
+            param_counts[['vit']['vit_attention']] += block.attention_layer.W_V.size
+            param_counts[['vit']['vit_attention']] += block.attention_layer.W_O.size
 
             # FFN/MoE
             if block.use_moe:
-                param_counts['vit_feedforward'] += block.moe.count_params()
+                param_counts[['vit']['vit_feedforward']] += block.moe.count_params()
             else:
-                param_counts['vit_feedforward'] += block.ffn.W1.size
-                param_counts['vit_feedforward'] += block.ffn.B1.size
-                param_counts['vit_feedforward'] += block.ffn.W2.size
-                param_counts['vit_feedforward'] += block.ffn.B2.size
+                param_counts[['vit']['vit_feedforward']] += block.ffn.W1.size
+                param_counts[['vit']['vit_feedforward']] += block.ffn.B1.size
+                param_counts[['vit']['vit_feedforward']] += block.ffn.W2.size
+                param_counts[['vit']['vit_feedforward']] += block.ffn.B2.size
 
             # LN params
-            param_counts['vit_ln'] += block.gamma_1.size
-            param_counts['vit_ln'] += block.beta_1.size
-            param_counts['vit_ln'] += block.gamma_2.size
-            param_counts['vit_ln'] += block.beta_2.size
+            param_counts[['vit']['vit_ln']] += block.gamma_1.size
+            param_counts[['vit']['vit_ln']] += block.beta_1.size
+            param_counts[['vit']['vit_ln']] += block.gamma_2.size
+            param_counts[['vit']['vit_ln']] += block.beta_2.size
 
         # ViT final LN
-        param_counts['vit_ln'] += self.vit_encoder.final_gamma.size
-        param_counts['vit_ln'] += self.vit_encoder.final_beta.size
+        param_counts[['vit']['vit_ln']] += self.vit_encoder.final_gamma.size
+        param_counts[['vit']['vit_ln']] += self.vit_encoder.final_beta.size
 
         # ====== X-Attn =====
         param_counts['x_attn'] = 0
@@ -435,9 +442,11 @@ class MultimodalTrainer(Trainer):
             param_counts['x_attn'] += x_attn.W_V.size
             param_counts['x_attn'] += x_attn.W_O.size
 
+        x_ln_params = 0
+        x_ln_params += param_counts['x_attn']
         # ===== X-Attn LN =====
         # Add gamma_cross and beta_cross to LN count
-        x_ln_params = sum(
+        x_ln_params += sum(
             block.gamma_cross.size + block.beta_cross.size
             for block in self.transformer_stack.blocks
         )
