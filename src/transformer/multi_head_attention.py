@@ -54,9 +54,7 @@ class MultiHeadAttention:
         self.head_dim = self.embedding_dim // self.num_heads
         self.dropout = dropout
 
-        key = jax.random.PRNGKey(
-            68157628006304057045295846951897664502295431894160942124012093587298959185368
-        )
+        key = jax.random.PRNGKey(48)
         k1, k2, k3, k4 = jax.random.split(key, 4)
 
         scale = 0.02

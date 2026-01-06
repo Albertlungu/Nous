@@ -55,9 +55,7 @@ class EmbeddingLayer:
         self.dropout = dropout
 
         # Create key inside __init__, not at class level
-        self.key = jax.random.PRNGKey(
-            68157628006304057045295846951897664502295431894160942124012093587298959185368
-            )
+        self.key = jax.random.PRNGKey(42)
         self.embeddings = jax.random.normal(self.key, (self.vocab_size, self.embedding_dim)) * 0.02
             # Basically, random numbers are selected for the vectors right now as placeholder
             # so that the algorithm doesn't see symmetry and simply assign the same

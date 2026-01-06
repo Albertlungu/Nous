@@ -41,9 +41,7 @@ class PatchEmbedding:
             # Image size and patch size are squared for area of a square
         self.patch_dim = in_channels * patch_size ** 2
 
-        key = jax.random.PRNGKey(
-            68157628006304057045295846951897664502295431894160942124012093587298959185368
-            )
+        key = jax.random.PRNGKey(44)
         scale = 0.02
         self.projection = jax.random.normal(
             key,
@@ -65,7 +63,7 @@ class PatchEmbedding:
         ) * scale
 
     @staticmethod
-    @partial(jax.jit, static_argnums=(0, 1, 3, 2, 4, 5))
+    @jax.jit
     def fwd(
         params:dict,
         images:jnp.ndarray

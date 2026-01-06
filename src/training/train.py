@@ -770,8 +770,8 @@ class Trainer:
         param_counts['output'] += self.output_layer.W_out.size
         param_counts['output'] += self.output_layer.b_out.size
 
-        # Total
-        param_counts['total'] = sum(param_counts.values()) - param_counts['total']
+        # Total (sum all values except 'total' itself)
+        param_counts['total'] = sum(v for k, v in param_counts.items() if k != 'total')
 
         return param_counts
 
@@ -952,7 +952,7 @@ class Trainer:
             checkpoint['adam_v'] = self._adam_v
 
         with open(path, "wb") as f:
-            pickle.dump(checkpoint, f)
+            pickle.dump(checkpoint, f, protocol=4)
 
     def save_model_only(self, path:str):
         """
@@ -980,7 +980,7 @@ class Trainer:
         }
 
         with open(path, "wb") as f:
-            pickle.dump(model_state, f)
+            pickle.dump(model_state, f, protocol=4)
 
         print(f"Model saved to {path} (weights only, no optimizer state)")
 
@@ -1085,7 +1085,7 @@ class Trainer:
         if 'adam_m' in checkpoint:
             self._adam_m = checkpoint['adam_m']
             self._adam_v = checkpoint['adam_v']
-            self.optimizer.t = checkpoint['optimizer_t']
+            self.optimizer.t = int(checkpoint['optimizer_t'])
             print("Loaded optimizer state from checkpoint")
         else:
             # Old checkpoint format or no optimizer state - reinitialize

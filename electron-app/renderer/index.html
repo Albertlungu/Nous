@@ -191,6 +191,55 @@
                             </div>
                         </div>
 
+                        <div id="vit-config-panel">
+                            <h3>Multimodal Vision-Language Model</h3>
+                            <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                                Enable vision capabilities (text + image → text, text-only, or image-only generation)
+                            </p>
+                            <div class="moe-type-select">
+                                <span class="toggle-label" style="font-size: 13px; color:var(--text-secondary)">Text Only</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="vit-toggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="toggle-label" style="font-size: 13px; color:var(--text-secondary)">Multimodal</span>
+                            </div>
+
+                            <div id="vit-options">
+                                <div class="config-grid">
+                                    <label>Image Size:
+                                        <input
+                                            type="number"
+                                            id="vit-image-size"
+                                            value="224"
+                                            min="32"
+                                            max="1024"
+                                            step="32"
+                                        >
+                                    </label>
+                                    <label>Patch Size:
+                                        <input
+                                            type="number"
+                                            id="vit-patch-size"
+                                            value="16"
+                                            min="4"
+                                            max="64"
+                                            step="4"
+                                        >
+                                    </label>
+                                    <label>In Channels:
+                                        <input
+                                            type="number"
+                                            id="vit-in-channels"
+                                            value="3"
+                                            min="1"
+                                            max="4"
+                                        >
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
                         <h3>Dataset Selection</h3>
                         <div class="config-grid">
                             <label style="grid-column: 1 / -1;">Dataset:

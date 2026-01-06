@@ -1142,6 +1142,22 @@ h2 {
     display: none;
 }
 
+/* ViT Configuration */
+#vit-config-panel {
+    margin-bottom: 24px;
+}
+
+#vit-config-panel h3 {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 12px;
+    color: var(--text-secondary);
+}
+
+#vit-options {
+    display: none;
+}
+
 /* Modal styles */
 .modal-overlay {
     position: fixed;

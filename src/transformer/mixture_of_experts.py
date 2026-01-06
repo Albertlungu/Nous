@@ -54,17 +54,13 @@ class MOE:
 
         # Router: decides which experts to use
         self.router_W = jax.random.normal(
-            jax.random.PRNGKey(
-                68157628006304057045295846951897664502295431894160942124012093587298959185368
-            ),
+            jax.random.PRNGKey(45),
             (self.embedding_dim, self.num_experts)
         ) * self.scale
         self.router_B = jnp.zeros(self.num_experts)
 
         # Create experts
-        key = jax.random.PRNGKey(
-            68157628006304057045295846951897664502295431894160942124012093587298959185368
-        )
+        key = jax.random.PRNGKey(46)
         self.experts = []
         for i in range(self.num_experts):
             key, subkey = jax.random.split(key)
@@ -278,9 +274,7 @@ class MOE:
         # ======= 4: Dropout =======
         if training and dropout > 0.0:
             if key is None:
-                key = jax.random.PRNGKey(
-                    68157628006304057045295846951897664502295431894160942124012093587298959185368
-                )
+                key = jax.random.PRNGKey(47)
             keep_prob = 1.0 - dropout
             mask = jax.random.bernoulli(key, keep_prob, output.shape)
             output = jnp.where(mask, output / keep_prob, 0.0)

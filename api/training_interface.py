@@ -11,6 +11,7 @@ from collections import deque
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.training.train import Trainer
+from src.training.multimodal_train import MultimodalTrainer
 from src.tokenizer.tiktoken_tokenizer import TikToken
 from api.paths import get_tokenizer_path, get_models_path
 
@@ -112,22 +113,49 @@ class TrainingInterface:
 
                 self._log(f"Loaded {len(token_ids)} training_examples")
 
-                self.trainer = Trainer(
-                    tokenizer=tokenizer,
-                    token_ids=token_ids,
-                    lr=config.get('lr', 1.1e-3),
-                    num_blocks=config.get('num_blocks', 8),
-                    num_heads=config.get('num_heads', 8),
-                    embedding_dim=config.get('embedding_dim', 512),
-                    max_seq_length=config.get('max_seq_length', 256),
-                    use_moe=config.get('use_moe', True),
-                    num_experts=config.get('num_experts', 8),
-                    experts_per_token=config.get('experts_per_token', 2),
-                    dropout=config.get('dropout', 0.0),
-                    use_lr_schedule=config.get('use_lr_schedule', True),
-                    warmup_steps=config.get('warmup_steps', 500),
-                    min_lr=config.get('min_lr', 5e-6)
-                )
+                # Use MultimodalTrainer if ViT is enabled, otherwise use base Trainer
+                use_vit = config.get('use_vit', False)
+
+                if use_vit:
+                    self._log("Initializing MultimodalTrainer (vision-language model)")
+                    self.trainer = MultimodalTrainer(
+                        tokenizer=tokenizer,
+                        token_ids=token_ids,
+                        lr=config.get('lr', 1.1e-3),
+                        num_blocks=config.get('num_blocks', 8),
+                        num_heads=config.get('num_heads', 8),
+                        embedding_dim=config.get('embedding_dim', 512),
+                        max_seq_length=config.get('max_seq_length', 256),
+                        use_moe=config.get('use_moe', True),
+                        num_experts=config.get('num_experts', 8),
+                        experts_per_token=config.get('experts_per_token', 2),
+                        image_size=config.get('vit_image_size', 224),
+                        patch_size=config.get('vit_patch_size', 16),
+                        in_channels=config.get('vit_in_channels', 3),
+                        vit_num_blocks=config.get('num_blocks', 8),
+                        dropout=config.get('dropout', 0.0),
+                        use_lr_schedule=config.get('use_lr_schedule', True),
+                        warmup_steps=config.get('warmup_steps', 500),
+                        min_lr=config.get('min_lr', 5e-6)
+                    )
+                else:
+                    self._log("Initializing Trainer (text-only model)")
+                    self.trainer = Trainer(
+                        tokenizer=tokenizer,
+                        token_ids=token_ids,
+                        lr=config.get('lr', 1.1e-3),
+                        num_blocks=config.get('num_blocks', 8),
+                        num_heads=config.get('num_heads', 8),
+                        embedding_dim=config.get('embedding_dim', 512),
+                        max_seq_length=config.get('max_seq_length', 256),
+                        use_moe=config.get('use_moe', True),
+                        num_experts=config.get('num_experts', 8),
+                        experts_per_token=config.get('experts_per_token', 2),
+                        dropout=config.get('dropout', 0.0),
+                        use_lr_schedule=config.get('use_lr_schedule', True),
+                        warmup_steps=config.get('warmup_steps', 500),
+                        min_lr=config.get('min_lr', 5e-6)
+                    )
 
                 self._log("Trainer initialized")
                 self._log(f"Model has {self.trainer.count_parameters()['total']:,} parameters")

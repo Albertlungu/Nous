@@ -12,12 +12,12 @@ import random
 from api.paths import get_training_data_path
 
 # Import all dataset loaders
-from src.utils.pipeline.load_openorca import load_openorca
-from src.utils.pipeline.load_flan import load_flan
-from src.utils.pipeline.load_ultrachat import load_ultrachat
-from src.utils.pipeline.load_sharegpt import load_sharegpt
-from src.utils.pipeline.load_code import load_all_code
-from src.utils.pipeline.load_math import load_all_math
+from src.utils.text_pipeline.load_openorca import load_openorca
+from src.utils.text_pipeline.load_flan import load_flan
+from src.utils.text_pipeline.load_ultrachat import load_ultrachat
+from src.utils.text_pipeline.load_sharegpt import load_sharegpt
+from src.utils.text_pipeline.load_code import load_all_code
+from src.utils.text_pipeline.load_math import load_all_math
 
 
 def combine_all_datasets(target_tokens=46_000_000_000):

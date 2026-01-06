@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const moeToggle = document.getElementById('moe-toggle');
     const moeOptions = document.getElementById('moe-options');
-    const moeTypeToggleLabels = document.querySelectorAll('.moe-type-select > .toggle-label');
+    const moeTypeToggleLabels = document.querySelectorAll('#moe-config-panel .moe-type-select > .toggle-label');
 
     if (moeToggle) {
         moeToggle.addEventListener('change', (e) => {
@@ -157,9 +157,39 @@ document.addEventListener('DOMContentLoaded', () => {
         moeTypeToggleLabels[0].classList.add('active');
     }
 
+    const vitToggle = document.getElementById('vit-toggle');
+    const vitOptions = document.getElementById('vit-options');
+    const vitTypeToggleLabels = document.querySelectorAll('#vit-config-panel .moe-type-select > .toggle-label');
+
+    if (vitToggle) {
+        vitToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                // ViT is enabled
+                vitOptions.style.display = 'block';
+                vitTypeToggleLabels[0].classList.remove('active');
+                vitTypeToggleLabels[1].classList.add('active');
+            } else {
+                // ViT is disabled
+                vitOptions.style.display = 'none';
+                vitTypeToggleLabels[0].classList.add('active');
+                vitTypeToggleLabels[1].classList.remove('active');
+            }
+        });
+        // Set initial state (Disabled by default)
+        vitTypeToggleLabels[0].classList.add('active');
+    }
+
     // Auto-select all text on focus for MoE inputs so the user doesn't have to triple click...
     const moeInputs = document.querySelectorAll('#num-experts, #experts-per-token');
     moeInputs.forEach(input => {
+        input.addEventListener('focus', function () {
+            this.select();
+        });
+    });
+
+    // Auto-select all text on focus for ViT inputs
+    const vitInputs = document.querySelectorAll('#vit-image-size, #vit-patch-size, #vit-in-channels');
+    vitInputs.forEach(input => {
         input.addEventListener('focus', function () {
             this.select();
         });
@@ -289,6 +319,10 @@ document.addEventListener('DOMContentLoaded', () => {
             use_moe: document.getElementById('moe-toggle')?.checked || false,
             num_experts: parseInt(document.getElementById('num-experts')?.value || 8),
             experts_per_token: parseInt(document.getElementById('experts-per-token')?.value || 2),
+            use_vit: document.getElementById('vit-toggle')?.checked || false,
+            vit_image_size: parseInt(document.getElementById('vit-image-size')?.value || 224),
+            vit_patch_size: parseInt(document.getElementById('vit-patch-size')?.value || 16),
+            vit_in_channels: parseInt(document.getElementById('vit-in-channels')?.value || 3),
             epochs: parseInt(document.getElementById('num-epochs')?.value || 75),
             batch_size: parseInt(document.getElementById('batch-size')?.value || 64),
             lr: parseFloat(document.getElementById('learning-rate')?.value || 0.0011),
@@ -331,6 +365,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (document.getElementById('num-experts')) document.getElementById('num-experts').value = config.num_experts || 8;
             if (document.getElementById('experts-per-token')) document.getElementById('experts-per-token').value = config.experts_per_token || 2;
 
+            // Restore ViT configuration
+            const vitToggle = document.getElementById('vit-toggle');
+            const useVit = config.use_vit === true || config.use_vit === 'true';
+            if (vitToggle) {
+                vitToggle.checked = useVit;
+                vitToggle.dispatchEvent(new Event('change'));
+            }
+
+            if (document.getElementById('vit-image-size')) document.getElementById('vit-image-size').value = config.vit_image_size || 224;
+            if (document.getElementById('vit-patch-size')) document.getElementById('vit-patch-size').value = config.vit_patch_size || 16;
+            if (document.getElementById('vit-in-channels')) document.getElementById('vit-in-channels').value = config.vit_in_channels || 3;
+
             if (document.getElementById('num-epochs')) document.getElementById('num-epochs').value = config.num_epochs || config.epochs || 75;
             if (document.getElementById('batch-size')) document.getElementById('batch-size').value = config.batch_size || 64;
             if (document.getElementById('learning-rate')) document.getElementById('learning-rate').value = config.learning_rate || config.lr || 0.0011;
@@ -359,6 +405,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('num-experts').value = 8;
     document.getElementById('experts-per-token').value = 2;
+
+    // Reset ViT to defaults (disabled)
+    const vitToggle = document.getElementById('vit-toggle');
+    if (vitToggle) {
+        vitToggle.checked = false;
+        vitToggle.dispatchEvent(new Event('change'));
+    }
+
+    document.getElementById('vit-image-size').value = 224;
+    document.getElementById('vit-patch-size').value = 16;
+    document.getElementById('vit-in-channels').value = 3;
 
     document.getElementById('num-epochs').value = 75;
     document.getElementById('batch-size').value = 64;
@@ -687,6 +744,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const numExperts = parseInt(document.getElementById('num-experts').value || 8);
         const expertsPerToken = parseInt(document.getElementById('experts-per-token').value || 2);
 
+        // ViT Config
+        const useVit = document.getElementById('vit-toggle').checked;
+        const vitImageSize = parseInt(document.getElementById('vit-image-size').value || 224);
+        const vitPatchSize = parseInt(document.getElementById('vit-patch-size').value || 16);
+        const vitInChannels = parseInt(document.getElementById('vit-in-channels').value || 3);
+
         // Calculate parameters for a transformer model
         // Token embedding: vocab_size * embedding_dim
         const tokenEmbedding = vocabSize * embeddingDim;
@@ -733,8 +796,24 @@ document.addEventListener('DOMContentLoaded', () => {
         // Output projection (LM head): embedding_dim * vocab_size
         const outputProjection = embeddingDim * vocabSize;
 
+        // ViT parameters (if enabled)
+        let vitParams = 0;
+        if (useVit) {
+            // Patch embedding: (in_channels * patch_size^2) -> embedding_dim
+            const patchDim = vitInChannels * vitPatchSize * vitPatchSize;
+            const patchEmbedding = patchDim * embeddingDim;
+
+            // ViT transformer blocks (same architecture as main transformer)
+            const vitBlockParams = numBlocks * paramsPerBlock;
+
+            // ViT final layer norm: 2 * embedding_dim
+            const vitFinalLayerNorm = 2 * embeddingDim;
+
+            vitParams = patchEmbedding + vitBlockParams + vitFinalLayerNorm;
+        }
+
         // Total parameters
-        const totalParams = tokenEmbedding + positionEmbedding + totalBlockParams + finalLayerNorm + outputProjection;
+        const totalParams = tokenEmbedding + positionEmbedding + totalBlockParams + finalLayerNorm + outputProjection + vitParams;
 
         // Format the number with commas
         const formattedParams = totalParams.toLocaleString();

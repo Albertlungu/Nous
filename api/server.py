@@ -85,6 +85,8 @@ def load_model():
             "model_info": info
         })
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/models/info', methods=['GET'])
