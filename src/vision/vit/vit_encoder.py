@@ -36,7 +36,7 @@ class ViTEncoder:
             num_experts=8,
             experts_per_token=2,
             dropout=0.0
-            ) -> None:
+            ):
         """
         Initializing the Vision encoder
 
@@ -95,7 +95,7 @@ class ViTEncoder:
     def fwd(
         params:dict,
         images:jnp.ndarray,
-        ) -> tuple[jnp.ndarray, float]:
+        ):
         """
         Forward pass through ViT encoder
 
@@ -139,7 +139,7 @@ class ViTEncoder:
 
         return final_output, total_aux_loss
 
-    def get_params(self) -> dict:
+    def get_params(self):
         """
         Get all params for JAX functions
 

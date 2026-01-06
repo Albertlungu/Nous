@@ -30,7 +30,7 @@ class TransformerStack:
             use_moe=True,
             num_experts=8,
             experts_per_token=2
-            ) -> None:
+            ):
         """
         Initialize stack of transformer blocks.
 
@@ -65,7 +65,7 @@ class TransformerStack:
     def fwd(
             self,
             x:jnp.ndarray
-            ) -> jnp.ndarray:
+            ):
         """
         Forward pass through all stacked blocks
 
@@ -97,7 +97,7 @@ class TransformerStack:
             self,
             x:jnp.ndarray,
             d_output:jnp.ndarray
-            ) -> list[dict]:
+            ):
         """
         Backpropagate through all blocks to compute gradients.
 
@@ -138,7 +138,7 @@ class TransformerStack:
     def get_params_and_grads(
             self,
             all_grads=None
-            ) -> list:
+            ):
         """
         Collect parameters and gradients from all blocks.
 

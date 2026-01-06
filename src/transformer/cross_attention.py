@@ -17,7 +17,7 @@ class CrossAttention:
                  num_heads=8,
                  num_blocks=8,
                  dropout=0.0
-                 ) -> None:
+                 ):
         """
         Initializing the CrossAttention class
 
@@ -65,7 +65,7 @@ class CrossAttention:
             num_heads=8,
             embedding_dim=512,
             head_dim=64
-            ) -> jnp.ndarray:
+            ):
         """
         Forward pass for cross-attention.
 
@@ -140,9 +140,9 @@ class CrossAttention:
 
         output = attn_output @ params['W_O']
 
-        return output, attn_weights
+        return output, attn_weights # Type "tuple[Unknown, Array]" is not assignable to return type "ndarray" "tuple[Unknown, Array]" is not assignable to "Array"
 
-    def get_params(self) -> dict:
+    def get_params(self):
         """
         Get parameters for JAX functions
 

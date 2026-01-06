@@ -30,17 +30,17 @@ class FeedForward():
     def __init__(
             self,
             embeddings:EmbeddingLayer,
-            ff_dim:int,
             num_blocks=8,
-            dropout=0.0
-            ) -> None:
+            dropout=0.0,
+            ff_dim=None,
+            ):
         """
         Initializes the FeedForward network.
 
         Args:
             embeddings (EmbeddingLayer): An instance of EmbeddingLayer to convert token
                                          IDs to embeddings.
-            ff_dim (int): FeedForward dimension if the user wants to customize it. By default, it is
+            ff_dim (int, optional): FeedForward dimension if the user wants to customize it. By default, it is
                           4 * embedding_dim.
             num_blocks (int, optional): Number of transformer blocks. Defaults to 8.
             dropout (float, optional): Dropout probability. Defaults to 0.0.
@@ -72,7 +72,7 @@ class FeedForward():
         self.B2 = jnp.zeros(self.embedding_dim) # Bias second layer
 
     @staticmethod
-    def gelu(x) -> jnp.ndarray:
+    def gelu(x):
         """
         gelu activation function
 
@@ -85,7 +85,7 @@ class FeedForward():
         return 0.5 * x * (1+jnp.tanh(jnp.sqrt(2/jnp.pi) * (x + 0.044715 * x**3)))
 
     @staticmethod
-    def relu(x) -> jnp.ndarray:
+    def relu(x):
         """Basically gelu but simpler
 
         Args:
@@ -104,7 +104,7 @@ class FeedForward():
         dropout=0.0,
         training=True,
         rng_key=None
-        ) -> jnp.ndarray:
+        ):
         """
         Static forward pass for use in JAX autodiff (called from TransformerBlock.fwd).
 
@@ -132,7 +132,7 @@ class FeedForward():
     def fwd_instance(
         self,
         x:jnp.ndarray
-        ) -> jnp.ndarray:
+        ):
         """
         Performs the forward pass of the feed-forward network.
 
@@ -151,7 +151,7 @@ class FeedForward():
             self,
             x:jnp.ndarray,
             target_ids:jnp.ndarray
-            ) -> dict:
+            ):
         """
         Computes gradients of the mean squared error loss w.r.t. the weights and biases.
 
@@ -180,7 +180,7 @@ class FeedForward():
     def get_params_and_grads(
             self,
             grads:dict
-            ) -> list[dict]:
+            ):
         """
         Getting parameters and gradients for feedforward network
 

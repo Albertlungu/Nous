@@ -257,7 +257,7 @@ def user_input():
 
     try:
         trainer.load_checkpoint(checkpoint_path)
-    except FileNotFoundError():
+    except FileNotFoundError:
         print(f"ERROR: No checkpoint found at {checkpoint_path}. Please verify to ensure it exists.")
 
     print("="*60)

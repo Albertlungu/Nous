@@ -9,7 +9,7 @@ import os
 import pickle
 import sys
 
-def convert_checkpoint(input_path:str, output_path:str) -> None:
+def convert_checkpoint(input_path:str, output_path:str):
     """
     Convert full checkpoint to model-only checkpoint.
 

@@ -69,7 +69,7 @@ class BPETokenizer:
     def __init__(
             self,
             vocab_size:int
-            ) -> None:
+            ):
         """
         Initializes a BPETokenizer object.
 
@@ -87,7 +87,7 @@ class BPETokenizer:
             'pad': self.padding_token_id,
             'eos': self.eos_token_id
         }
-        self.vocab[self.eos_token_id] = "b<EOS>"
+        self.vocab[self.eos_token_id] = b"<EOS>"
         self._ensure_vocab()
 
     def _rebuild_vocab(self):
@@ -109,7 +109,7 @@ class BPETokenizer:
     def get_stats(
             self,
             input:list
-            ) -> dict:
+            ):
         """
         Given a text, returns a dictionary of pair counts.
 
@@ -129,7 +129,7 @@ class BPETokenizer:
             input:list,
             pair:tuple,
             idx:int
-            ) -> list:
+            ):
         """
         Merge a pair of adjacent ids in a list of ids to a single idx.
 
@@ -154,7 +154,7 @@ class BPETokenizer:
 
     def make_merges(
             self,
-            input:list,
+            input: list | bytes,
             dataset_length:int,
             progress_callback=None):
         """
@@ -188,7 +188,7 @@ class BPETokenizer:
             # Find the most frequent pair that does not include special tokens
             pair = max(
                 (p for p in stats if p[0] not in self.special_tokens.values() and p[1] not in self.special_tokens.values()),
-                key=stats.get,
+                key=stats.get,  # type: ignore
                 default=None
             )
 
@@ -216,7 +216,7 @@ class BPETokenizer:
     def decode(
             self,
             ids:list
-            ) -> str:
+            ):
         """
         Given a list of ids, returns the corresponding text.
 
@@ -234,7 +234,7 @@ class BPETokenizer:
     def encode(
             self,
             text:str
-            ) -> list:
+            ):
         """
         Given a string of text, returns the corresponding list of ids.
 

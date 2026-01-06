@@ -10,6 +10,7 @@ import sys
 
 import jax # pylint: disable=no-member
 import jax.numpy as jnp # pylint: disable=no-member
+from jax import Array
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 class CrossEntropyLoss:
@@ -22,7 +23,7 @@ class CrossEntropyLoss:
             self,
             ignore_index=None,
             reduction='mean'
-            ) -> None:
+            ):
         """
         Initializing CrossEntropyLoss.
 
@@ -44,7 +45,7 @@ class CrossEntropyLoss:
         reduction='mean',
         eos_weight=1.0,
         eos_token_id=None
-        ) -> float:
+        ):
         """
         Forward pass for the cross entropy loss function. Calculates the actual loss for each token.
 
@@ -61,7 +62,7 @@ class CrossEntropyLoss:
                                           Required if eos_weight is specified. Defaults to None.
 
         Returns:
-            float: Loss of the model.
+            Array: Loss of the model.
 
         Raises:
             TypeError

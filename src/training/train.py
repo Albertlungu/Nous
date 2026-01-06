@@ -22,6 +22,7 @@ import gc
 import time as t
 import pickle
 from datetime import datetime
+from typing import Any
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -79,7 +80,7 @@ class Trainer:
                  use_lr_schedule=True,
                  warmup_steps=500,
                  dropout=0.0
-                ) -> None:
+                ):
         """
         Initialize Trainer with model architecture.
 
@@ -127,7 +128,7 @@ class Trainer:
             for text in tqdm(training_data):
                 ids = self.tokenizer.encode(text)
                 ids.append(self.tokenizer.eos_token_id)
-                self.token_ids.append(ids)
+                token_ids.append(ids)
 
         self.token_ids = token_ids
 
@@ -197,7 +198,7 @@ class Trainer:
                     output_params:dict,
                     final_ln_params:dict,
                     token_ids:jnp.ndarray
-                    ) -> tuple[jnp.ndarray, jnp.ndarray]:
+                    ):
             """
             Forward pass through entire model using JAX.
 
@@ -276,13 +277,13 @@ class Trainer:
                              final_ln_params:dict,
                              token_ids:jnp.ndarray,
                              targets:jnp.ndarray
-                            ) -> tuple:
+                            ):
             """JIT-compiled loss and gradient computation."""
             def loss_fn(embed_params:dict,
                         stack_params:dict,
                         output_params:dict,
                         final_ln_params:dict
-                        ) -> any:
+                        ):
                 embeddings, _ = EmbeddingLayer.embedding_fwd(embed_params, token_ids)
 
                 current = embeddings
@@ -358,7 +359,7 @@ class Trainer:
             """
             m_pytree, v_pytree = optimizer_state
 
-            def adam_update_leaf(param, grad, m, v) -> tuple:
+            def adam_update_leaf(param, grad, m, v):
                 """Apply Adam update to a single parameter array."""
                 # Update biased first moment
                 m_new = beta1 * m + (1 - beta1) * grad
@@ -405,7 +406,7 @@ class Trainer:
 
         return update_fn
 
-    def _flatten_params(self) -> tuple:
+    def _flatten_params(self):
         """
         Get all parameters as a pytree (tuple structure).
         This structure matches the gradient structure from compute_loss_and_grads.
@@ -420,7 +421,7 @@ class Trainer:
             {'gamma': self.final_gamma, 'beta': self.final_beta}
         )
 
-    def _unflatten_params(self, params) -> tuple:
+    def _unflatten_params(self, params):
         """
         Set all parameters from a pytree (tuple structure).
 
@@ -469,7 +470,7 @@ class Trainer:
     def compute_loss_and_grads(self,
                                token_ids:jnp.ndarray,
                                targets:jnp.ndarray
-                               ) -> tuple[float, dict]:
+                               ):
         """
         Compute loss and ALL gradients using JIT-compiled JAX autodiff.
 
@@ -540,7 +541,7 @@ class Trainer:
         self.output_layer.b_out = jnp.clip(self.output_layer.b_out, -10.0, 10.0)
 
 
-    def _get_timestamped_checkpoint_path(self, base_path:str) -> str:
+    def _get_timestamped_checkpoint_path(self, base_path:str):
         """
         Generate a timestamped checkpoint path.
 
@@ -571,7 +572,7 @@ class Trainer:
               batch_size=32,
               save_every=1,
               prompt=""
-              ) -> None:
+              ):
         """
         Train the model with JAX autodiff.
         Automatically saves checkpoints with timestamps.
@@ -722,7 +723,7 @@ class Trainer:
         print("Training complete! Saving final checkpoint...")
         self.save_checkpoint(timestamped_checkpoint)
 
-    def count_parameters(self) -> dict:
+    def count_parameters(self):
         """
         Count total number of trainable parameters in the model.
 
@@ -774,7 +775,7 @@ class Trainer:
 
         return param_counts
 
-    def print_model_summary(self) -> None:
+    def print_model_summary(self):
         """
         Print a summary of the model architecture and parameter counts.
         """
@@ -821,7 +822,7 @@ class Trainer:
         print(f"Model Size (float16): ~{size_mb:.2f} MB")
         print("="*60)
 
-    def _generate_metadata(self) -> dict:
+    def _generate_metadata(self):
         """
         Generate comprehensive metadata about the model and training.
 
@@ -918,7 +919,7 @@ class Trainer:
 
         return metadata
 
-    def save_checkpoint(self, path:str) -> None:
+    def save_checkpoint(self, path:str):
         """
         Save model parameters AND optimizer state to file (for resuming training).
 
@@ -953,7 +954,7 @@ class Trainer:
         with open(path, "wb") as f:
             pickle.dump(checkpoint, f)
 
-    def save_model_only(self, path:str) -> None:
+    def save_model_only(self, path:str):
         """
         Save ONLY model weights (smaller file, for inference only).
 
@@ -983,7 +984,7 @@ class Trainer:
 
         print(f"Model saved to {path} (weights only, no optimizer state)")
 
-    def save_model_npz(self, path:str) -> None:
+    def save_model_npz(self, path:str):
         """
         Save model weights as compressed NumPy arrays (smallest file size).
 
@@ -1027,11 +1028,11 @@ class Trainer:
             'embedding_dim': self.embedding_layer.embedding_dim
         }
 
-        # Save with compression
-        np.savez_compressed(path, **save_dict, config=config)
+        # Save with compression (convert config dict to numpy array)
+        np.savez_compressed(path, **save_dict, config=np.array(config, dtype=object))  # type: ignore
         print(f"Model saved to {path} (compressed NPZ format)")
 
-    def load_checkpoint(self, path:str) -> None:
+    def load_checkpoint(self, path:str):
         """
         Load model parameters from file.
 
@@ -1128,7 +1129,7 @@ class Trainer:
                  top_k=40,
                  repetition_penalty=1.2,
                  debug=False
-                 ) -> tuple[str, list]:
+                 ):
         """
         Generate text using the trained model.
 
@@ -1249,7 +1250,7 @@ class Trainer:
         generated_token_ids = token_ids[prompt_length:]
         return "", generated_token_ids
 
-    def create_batches(self, batch_size=32) -> list:
+    def create_batches(self, batch_size=32):
         """
         Create padded batches.
 
@@ -1260,6 +1261,9 @@ class Trainer:
         Returns:
             list: Contains batches of token ids.
         """
+        if self.token_ids is None:
+            raise ValueError("token_ids is None. Please provide training data or token_ids.")
+
         fixed_len = self.max_seq_length
         batches = []
         for i in range(0, len(self.token_ids), batch_size):
@@ -1279,7 +1283,7 @@ class Trainer:
                         batch_size=32,
                         save_every=5,
                         prompt=""
-                        ) -> None: # TODO: Add docstring
+                        ): # TODO: Add docstring
         """
         Method to extend model training from existing checkpoint
 

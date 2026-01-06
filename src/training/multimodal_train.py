@@ -19,6 +19,7 @@ from src.training.train import Trainer
 from src.vision.vit.vit_encoder import ViTEncoder
 from src.transformer.cross_attention import CrossAttention
 from src.transformer.transformer_block import TransformerBlock
+from src.transformer.output_layer import OutputLayer
 from src.training.loss_function import CrossEntropyLoss
 from src.embeddings.embeddings import EmbeddingLayer
 
@@ -55,7 +56,7 @@ class MultimodalTrainer(Trainer):
                  use_lr_schedule=True,
                  warmup_steps=500,
                  dropout=0.0
-                 ) -> None:
+                 ):
         """
         Initializing the multimodal trainer.
 
@@ -137,12 +138,11 @@ class MultimodalTrainer(Trainer):
             block.gamma_cross = jnp.ones((embedding_dim,))
             block.beta_cross = jnp.zeros((embedding_dim,))
 
-    # TODO: Add gradient computation
     def compute_loss_and_grads_multimodal(self,
                                           images:jnp.ndarray,
                                           token_ids:jnp.ndarray,
                                           targets:jnp.ndarray
-                                          ) -> tuple[float, dict]:
+                                          ):
         """
         Compute loss and gradients for image->text gen
 
@@ -155,66 +155,84 @@ class MultimodalTrainer(Trainer):
         Returns:
             tuple[float, dict]: Tuple containing the model's loss and the grads dictionary.
         """
-
-        # Get ViT encoder outputs (image features)
+        # Get all parameters
         vit_params = self.vit_encoder.get_params()
-        image_embeddings = ViTEncoder.fwd(
-            vit_params,
-            images,
-            num_heads=self.num_heads,
-            head_dim=self.embedding_dim // self.num_heads,
-            embedding_dim=self.embedding_dim,
-            num_blocks=self.vit_num_blocks
-        )
-
-        # Get text embeddings
         embed_params = self.embedding_layer.get_params()
-        text_embeddings, _ = self.embedding_layer.embedding_fwd(
-            embed_params,
-            token_ids
-        )
+        output_params = self.output_layer.get_params()
+        final_ln_params = {'gamma': self.final_gamma, 'beta': self.final_beta}
 
-        # Fwd through decoder with x-attn
-        current = text_embeddings
+        # Collect all transformer block params including cross attention
+        stack_params = []
         for i, block in enumerate(self.transformer_stack.blocks):
             block_params = block.get_params()
-
             block_params['cross_attn'] = self.cross_attentions[i].get_params()
             block_params['gamma_cross'] = block.gamma_cross
             block_params['beta_cross'] = block.beta_cross
+            stack_params.append(block_params)
 
-            current, aux_loss, _ = TransformerBlock.fwd_with_x_attn(
-                block_params,
+        # Store static values for JIT
+        num_heads = self.num_heads
+        head_dim = self.embedding_dim // self.num_heads
+        embedding_dim = self.embedding_dim
+        num_blocks = self.vit_num_blocks
+        eos_token_id = self.tokenizer.eos_token_id
+
+        def loss_fn(vit_params, embed_params, stack_params, final_ln_params, output_params):
+            """Nested loss function for gradient computation."""
+            # Get ViT encoder outputs (image features)
+            image_embeddings, _ = ViTEncoder.fwd(vit_params, images)
+
+            # Get text embeddings
+            text_embeddings, _ = EmbeddingLayer.embedding_fwd(embed_params, token_ids)
+
+            # Forward through decoder with cross-attention
+            current = text_embeddings
+            for i in range(len(stack_params)):
+                current, aux_loss, _ = TransformerBlock.fwd_with_x_attn(
+                    stack_params[i],
+                    current,
+                    image_embeddings,
+                    num_heads=num_heads,
+                    head_dim=head_dim,
+                    embedding_dim=embedding_dim
+                )
+
+            # Apply final LayerNorm
+            current = TransformerBlock.layer_norm(
                 current,
-                image_embeddings,
-                num_heads=self.num_heads,
-                head_dim=self.embedding_dim // self.num_heads,
-                embedding_dim=self.embedding_dim
+                final_ln_params['gamma'],
+                final_ln_params['beta']
             )
 
-        # Apply final LayerNorm
-        current = TransformerBlock.layer_norm(
-            current,
-            self.final_gamma,
-            self.final_beta
+            # Output layer
+            logits = OutputLayer.fwd(output_params, current)
+
+            # Calculate loss
+            loss = CrossEntropyLoss.fwd(
+                logits,
+                targets,
+                ignore_index=0,
+                eos_weight=1.0,
+                eos_token_id=eos_token_id
+            )
+
+            return loss
+
+        # Compute loss and gradients
+        loss, grads = jax.value_and_grad(loss_fn, argnums=(0, 1, 2, 3, 4))(
+            vit_params, embed_params, stack_params, final_ln_params, output_params
         )
 
-        # Output layer
-        logits = self.output_layer.fwd(
-            self.output_layer.get_params(),
-            current
-        )
+        # Package gradients into a dictionary
+        grads_dict = {
+            'vit': grads[0],
+            'embed': grads[1],
+            'stack': grads[2],
+            'final_ln': grads[3],
+            'output': grads[4]
+        }
 
-        # Calculate loss
-        loss = CrossEntropyLoss.fwd(
-            logits,
-            targets,
-            ignore_index=0,
-            eos_weight=1.0,
-            eos_token_id=self.tokenizer.eos_token_id
-        )
-
-        return loss
+        return loss, grads_dict
 
     def generate_from_image(self,
                             prompt="",
@@ -224,7 +242,7 @@ class MultimodalTrainer(Trainer):
                             repetition_penalty=1.2,
                             debug=False,
                             image=None
-                            ) -> str:
+                            ):
         """
         Generate text from image and/or prompt.
 
@@ -243,7 +261,7 @@ class MultimodalTrainer(Trainer):
         if image is not None:
             if isinstance(image, str):
                 image = PILImage.open(image).convert('RGB')
-                image = image.resize((224, 224), PILImage.BICUBIC)
+                image = image.resize((224, 224), PILImage.Resampling.BICUBIC)
                 image = np.array(image).astype(np.float16) / 255.0
 
             image_batch = jnp.array([image])
@@ -273,9 +291,9 @@ class MultimodalTrainer(Trainer):
 
         with jax.default_device(jax.devices()[0]):
             for step_idx in range(max_len):
-                batch_token_ids = jnp.array([token_ids], dtype=jnp.int16)
+                batch_token_ids = jnp.array([token_ids], dtype=jnp.int32)
 
-                text_embeddings, _ = EmbeddingLayer.fwd(
+                text_embeddings, _ = EmbeddingLayer.embedding_fwd(
                     embed_params,
                     batch_token_ids
                 )
@@ -290,9 +308,6 @@ class MultimodalTrainer(Trainer):
                         block_params['cross_attn'] = self.cross_attentions[i].get_params()
                         block_params['gamma_cross'] = block.gamma_cross
                         block_params['beta_cross'] = block.beta_cross
-                        # TODO: Something weird is happening here:
-                            # the autocomplete does not exist for gamma and beta_cross,
-                            # suggesting incorrect declaration
 
                         current, aux_loss, _ = TransformerBlock.fwd_with_x_attn(
                             block_params,
@@ -327,15 +342,15 @@ class MultimodalTrainer(Trainer):
                     final_ln_params['beta']
                 )
 
-                logits = self.output_layer.fwd(output_params, current) # TODO: Check if this works as expected
-
+                logits = self.output_layer.fwd(output_params, current)
+                
                 next_logits = logits[0, -1] / temperature
 
                 vocab_size = self.tokenizer.vocab_size
 
                 # Repetition penalty
                 if repetition_penalty != 1.0:
-                    unique_tokens = jnp.array(list(set(token_ids)), dtype=jnp.int16)
+                    unique_tokens = jnp.array(list(set(token_ids)), dtype=jnp.int32)
 
                     penalty_mask = jnp.zeros(vocab_size, dtype=jnp.bool_)
                     penalty_mask = penalty_mask.at[unique_tokens].set(True)
@@ -376,9 +391,9 @@ class MultimodalTrainer(Trainer):
                 print(self.tokenizer.decode([next_token]), end="", flush=True)
 
         generated = token_ids[prompt_length:]
-        return "", generated
+        return generated
 
-    def count_parameters(self) -> dict:
+    def count_parameters(self):
         """
         Count total trainable parameters including ViT encoder and cross-attention.
 
@@ -397,41 +412,41 @@ class MultimodalTrainer(Trainer):
         }
 
         # Patch embeddings
-        param_counts[['vit']['vit_patch_embedding']] = 0
-        param_counts[['vit']['vit_patch_embedding']] += self.vit_encoder.patch_embedding.projection.size
-        param_counts[['vit']['vit_patch_embedding']] += self.vit_encoder.patch_embedding.cls_token.size
-        param_counts[['vit']['vit_patch_embedding']] += self.vit_encoder.patch_embedding.positional_embeddings.size
+        param_counts['vit']['vit_patch_embedding'] = 0
+        param_counts['vit']['vit_patch_embedding'] += self.vit_encoder.patch_embedding.projection.size
+        param_counts['vit']['vit_patch_embedding'] += self.vit_encoder.patch_embedding.cls_token.size
+        param_counts['vit']['vit_patch_embedding'] += self.vit_encoder.patch_embedding.positional_embeddings.size
 
         # ViT Transformer Blocks
-        param_counts[['vit']['vit_attention']] = 0
-        param_counts[['vit']['vit_feedforward']] = 0
-        param_counts[['vit']['vit_ln']] = 0
+        param_counts['vit']['vit_attention'] = 0
+        param_counts['vit']['vit_feedforward'] = 0
+        param_counts['vit']['vit_ln'] = 0
 
         for block in self.vit_encoder.transformer_stack.blocks:
             # Attention
-            param_counts[['vit']['vit_attention']] += block.attention_layer.W_Q.size
-            param_counts[['vit']['vit_attention']] += block.attention_layer.W_K.size
-            param_counts[['vit']['vit_attention']] += block.attention_layer.W_V.size
-            param_counts[['vit']['vit_attention']] += block.attention_layer.W_O.size
+            param_counts['vit']['vit_attention'] += block.attention_layer.W_Q.size
+            param_counts['vit']['vit_attention'] += block.attention_layer.W_K.size
+            param_counts['vit']['vit_attention'] += block.attention_layer.W_V.size
+            param_counts['vit']['vit_attention'] += block.attention_layer.W_O.size
 
             # FFN/MoE
             if block.use_moe:
-                param_counts[['vit']['vit_feedforward']] += block.moe.count_params()
+                param_counts['vit']['vit_feedforward'] += block.moe.count_params()
             else:
-                param_counts[['vit']['vit_feedforward']] += block.ffn.W1.size
-                param_counts[['vit']['vit_feedforward']] += block.ffn.B1.size
-                param_counts[['vit']['vit_feedforward']] += block.ffn.W2.size
-                param_counts[['vit']['vit_feedforward']] += block.ffn.B2.size
+                param_counts['vit']['vit_feedforward'] += block.ffn.W1.size
+                param_counts['vit']['vit_feedforward'] += block.ffn.B1.size
+                param_counts['vit']['vit_feedforward'] += block.ffn.W2.size
+                param_counts['vit']['vit_feedforward'] += block.ffn.B2.size
 
             # LN params
-            param_counts[['vit']['vit_ln']] += block.gamma_1.size
-            param_counts[['vit']['vit_ln']] += block.beta_1.size
-            param_counts[['vit']['vit_ln']] += block.gamma_2.size
-            param_counts[['vit']['vit_ln']] += block.beta_2.size
+            param_counts['vit']['vit_ln'] += block.gamma_1.size
+            param_counts['vit']['vit_ln'] += block.beta_1.size
+            param_counts['vit']['vit_ln'] += block.gamma_2.size
+            param_counts['vit']['vit_ln'] += block.beta_2.size
 
         # ViT final LN
-        param_counts[['vit']['vit_ln']] += self.vit_encoder.final_gamma.size
-        param_counts[['vit']['vit_ln']] += self.vit_encoder.final_beta.size
+        param_counts['vit']['vit_ln'] += self.vit_encoder.final_gamma.size
+        param_counts['vit']['vit_ln'] += self.vit_encoder.final_beta.size
 
         # ====== X-Attn =====
         param_counts['x_attn'] = 0

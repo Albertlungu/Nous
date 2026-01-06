@@ -8,6 +8,7 @@ information about token positions in sequences.
 """
 import jax # pylint: disable=no-member
 import jax.numpy as jnp # pylint: disable=no-member
+from jax import Array
 
 class PositionalEncoding:
     """
@@ -20,7 +21,7 @@ class PositionalEncoding:
             self,
             embedding_dim:int,
             max_seq_length=256
-            ) -> None:
+            ):
         """
         Initialize the positional encoding generator.
 
@@ -34,7 +35,7 @@ class PositionalEncoding:
     def _create_positional_encoding(
             self,
             n=10000
-            ) -> jnp.array:
+            ):
         """
         Create sinusoidal positional encodings.
 

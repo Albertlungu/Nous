@@ -28,7 +28,7 @@ class MOE:
             scale=0.02,
             dropout=0.0,
             activation="gelu"
-            ) -> None:
+            ):
         """
         Initialization of MoE layer
 
@@ -75,7 +75,7 @@ class MOE:
     def _init_expert(
             self,
             key:int
-            ) -> dict:
+            ):
         """
         Create a single expert. Each expert is an entire FFN.
 
@@ -96,7 +96,7 @@ class MOE:
             'B2': jnp.zeros(self.embedding_dim)
         }
 
-    def get_params(self) -> dict:
+    def get_params(self):
         """
         Gets the parameters for each expert and returns as a dictionary
 
@@ -122,7 +122,7 @@ class MOE:
 
     def set_params(
             self,
-            params:dict) -> None:
+            params:dict):
         """
         Load params from a dictionary.
 
@@ -141,7 +141,7 @@ class MOE:
             }
 
     @staticmethod
-    def gelu(x:jnp.ndarray) -> jnp.ndarray:
+    def gelu(x:jnp.ndarray):
         """
         GELU activation function
 
@@ -154,7 +154,7 @@ class MOE:
         return 0.5 * x * (1+jnp.tanh(jnp.sqrt(2/jnp.pi) * (x + 0.044715 * x**3)))
 
     @staticmethod
-    def relu(x) -> jnp.ndarray:
+    def relu(x):
         """Basically gelu but simpler
 
         Args:
@@ -171,7 +171,7 @@ class MOE:
         x:jnp.ndarray,
         expert_params:dict,
         activation='gelu'
-        ) -> jnp.ndarray:
+        ):
         """
         Forward pass through a single expert (normal FFN)
 
@@ -209,7 +209,7 @@ class MOE:
         training=False,
         dropout=0.0,
         key=None
-        ) -> tuple[jnp.ndarray, float]:
+        ):
         """
         Forward pass through full MoE layer.
 
@@ -291,14 +291,14 @@ class MOE:
         expert_usage = jnp.mean(router_probs, axis=(0, 1)) # Shape: (num_experts,)
         aux_loss = num_experts * jnp.sum(expert_usage**2) # Weigh the experts already used more
 
-        return output, aux_loss
+        return output, aux_loss # Type "tuple[Array | Unknown, Array]" is not assignable to return type "tuple[ndarray, float]" "Array" is not assignable to "float"
 
     def fwd_instance(
             self,
             x:jnp.ndarray,
             training=False,
             key=None
-            ) -> tuple[jnp.ndarray, float]:
+            ):
         """
         Instance method fwd pass (calls the static fwd() method)
         Args:
@@ -323,7 +323,7 @@ class MOE:
             key=key
         )
 
-    def count_params(self) -> int:
+    def count_params(self):
         """
         Count total number of params in MoE layer
 
@@ -339,7 +339,7 @@ class MOE:
         return router_params + expert_params
 
 
-def main() -> None:
+def main():
     # moe = MOE()
     # print(moe.get_params())
     pass

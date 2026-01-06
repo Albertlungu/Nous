@@ -26,7 +26,7 @@ class AdamNested:
             total_steps=0,
             schedule='constant',
             min_lr=1e-7
-            ) -> None:
+            ):
         """
         Adam optimizer with optional learning rate scheduling.
 
@@ -62,7 +62,7 @@ class AdamNested:
     @jax.jit
     def _adam_step_fn(
         params:Mapping[str, Any],
-        grads:GradientType,
+        grads:Any,
         m:float,
         v:float,
         t:int,
@@ -70,7 +70,7 @@ class AdamNested:
         beta2:float,
         lr:float,
         epsilon:float
-        ) -> tuple[Mapping[str, Any], float, float]:
+        ):
         """
         Update function for Adam optimizer.
 
@@ -106,7 +106,7 @@ class AdamNested:
 
         return updated_params, m_new, v_new
 
-    def get_lr(self) -> float:
+    def get_lr(self):
         """
         Get current learning rate based on schedule and timestep.
 
@@ -148,7 +148,7 @@ class AdamNested:
     def _get_state_key(
             self,
             path:Tuple[Union[str, int]]
-            ) -> str:
+            ):
         """
         Maps a parameter to an optimizer-state key.
 
@@ -163,10 +163,10 @@ class AdamNested:
 
     def _step_single(
             self,
-            params:Mapping[str, Any],
+            params:Any,
             grads:GradientType,
             path:Tuple[Union[str, int]]
-            ) -> Mapping[str, Any]:
+            ):
         """
         Make a single step through the Adam optimizer.
 
@@ -203,10 +203,10 @@ class AdamNested:
 
     def step(
             self,
-            params:Mapping[str, Any],
-            grads:GradientType,
-            path:Tuple[Union[str, int]]
-            ) -> Union[dict, list, tuple, Any]:
+            params:Any,
+            grads:Any,
+            path:Any
+            ):
         """
         Applies the Adam optimizer to a nested parameter structure.
 

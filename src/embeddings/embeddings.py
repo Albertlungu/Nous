@@ -11,10 +11,12 @@ import os
 import pickle
 import sys
 import xml.etree.ElementTree as ET
+from typing import Union, Tuple, Any
 
 import jax.numpy as jnp # pylint: disable=no-member
 import jax # pylint: disable=no-member
 import numpy as np
+from jax import Array
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from src.tokenizer.tokenizer_class import BPETokenizer
@@ -30,12 +32,12 @@ class EmbeddingLayer:
 
     def __init__(
             self,
-            vocab_size=None,
+            vocab_size:int=5000,
             embedding_dim=None,
             max_seq_length=256,
             n=10000,
             dropout=0.0
-            ) -> None:
+            ):
         """
         Initializes an EmbeddingLayer object.
 
@@ -68,10 +70,10 @@ class EmbeddingLayer:
 
     @staticmethod
     def pad_token_ids(
-        max_len,
-        token_ids,
-        pad_token_id=None
-        ) -> list:
+        max_len:int,
+        token_ids:list,
+        pad_token_id:int=0
+        ):
         """
         Pads token ids
 
@@ -104,7 +106,7 @@ class EmbeddingLayer:
         dropout=0.0,
         training=True,
         rng_key=None
-        ) -> tuple[jnp.ndarray, list]:
+        ):
         """
         Forward method of the embedding layer
 
@@ -166,7 +168,7 @@ class EmbeddingLayer:
             self,
             grads:jnp.ndarray,
             learning_rate:float
-            ) -> None:
+            ):
         """
         Updates embedding weights using gradients (added up from all ids)
 
@@ -181,7 +183,7 @@ class EmbeddingLayer:
     def save(
             self,
             filepath:str
-            ) -> None:
+            ):
         """
         Save embeddings to a file
         Args:
@@ -199,7 +201,7 @@ class EmbeddingLayer:
     def load(
             self,
             filepath:str
-            ) -> None:
+            ):
         """
         Load embeddings from file
         Args:
@@ -213,7 +215,7 @@ class EmbeddingLayer:
             self.max_seq_length = data['max_seq_length']
             self.positional_encodings = self.positional_encoding_class._create_positional_encoding()
 
-    def get_params(self) -> dict:
+    def get_params(self):
         """
         Get parameters as a dict for JAX functions
 
@@ -227,7 +229,7 @@ class EmbeddingLayer:
             'positional_encodings': self.positional_encodings
         }
 
-    def get_params_and_grads(self) -> tuple[list[int, int], jnp.ndarray]:
+    def get_params_and_grads(self):
         """
         Gets parameters and gradients from embedding class
 

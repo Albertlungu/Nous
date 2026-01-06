@@ -48,7 +48,7 @@ class TransformerBlock:
             use_moe=True,
             num_experts=8,
             experts_per_token=2
-            ) -> None:
+            ):
         """
         Initializing instance variables for the TransformerBlock class
 
@@ -73,6 +73,9 @@ class TransformerBlock:
         self.gamma_2 = jnp.ones((self.embedding_dim,))
         self.beta_2 = jnp.zeros((self.embedding_dim,))
 
+        self.gamma_cross = jnp.ones((self.embedding_dim,))
+        self.beta_cross = jnp.zeros((self.embedding_dim,))
+
         self.use_moe = use_moe
 
         if self.use_moe:
@@ -87,7 +90,7 @@ class TransformerBlock:
             )
         else:
             self.ffn = FeedForward(
-                embedding_dim=self.embedding_dim,
+                embeddings=embedding_layer,
                 num_blocks=num_blocks,
                 dropout=dropout
             )
@@ -99,7 +102,7 @@ class TransformerBlock:
         gamma:jnp.ndarray,
         beta:jnp.ndarray,
         epsilon=1e-5
-        ) -> jnp.ndarray:
+        ):
         """
         Layer normalization - normalizes across the feature dimension.
 
@@ -135,7 +138,7 @@ class TransformerBlock:
         dropout=0.0,
         training=True,
         rng_key=None
-        ) -> tuple[jnp.ndarray, float]:
+        ):
         """
         Forward pass through transformer block (pure function for JIT).
 
@@ -237,7 +240,7 @@ class TransformerBlock:
         dropout=0.0,
         training=True,
         rng_key=None
-        ) -> tuple[jnp.ndarray, float, jnp.ndarray]:
+        ):
         """
         Forward pass with cross-attention for a multimodal transformer
 
@@ -365,7 +368,7 @@ class TransformerBlock:
         head_dim:int,
         embedding_dim:int,
         past_kv=None
-        ) -> tuple[jnp.ndarray, jnp.ndarray]:
+        ):
         """
         Forward pass with KV-cache
 
@@ -404,7 +407,7 @@ class TransformerBlock:
 
         return final_out, new_kv
 
-    def get_params(self) -> dict:
+    def get_params(self):
         """
         Get all parameters as a dictionary for JAX functions
 
@@ -435,7 +438,7 @@ class TransformerBlock:
             self,
             x:jnp.ndarray,
             d_output:jnp.ndarray
-            ) -> tuple[dict, jnp.ndarray]:
+            ):
         """
         Compute gradients using JAX autodiff
 
@@ -465,7 +468,7 @@ class TransformerBlock:
     def get_params_and_grads(
             self,
             grads=None
-            ) -> list[dict]:
+            ):
         """
         Return params and grads in Trainer format
 

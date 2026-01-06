@@ -19,7 +19,7 @@ class PatchEmbedding:
             patch_size=16,
             in_channels=3,
             embedding_dim=256
-            ) -> None:
+            ):
         """
         Initializing the PatchEmbedding class.
 
@@ -69,7 +69,7 @@ class PatchEmbedding:
     def fwd(
         params:dict,
         images:jnp.ndarray
-        ) -> jnp.ndarray:
+        ):
         """
         Forward pass: image -> patches -> embeddings
 
@@ -111,7 +111,7 @@ class PatchEmbedding:
         return embeddings
 
 
-    def get_params(self) -> dict:
+    def get_params(self):
         """
         Get parameters for JAX functions
         """

@@ -8,6 +8,7 @@ Although you can use the custom BPE tokenizer, this is faster at the actual toke
 
 import pickle
 from api.paths import get_training_data_path, get_tokenizer_path
+from typing import Any
 
 import tiktoken # pylint: disable=no-member
 from tqdm import tqdm
@@ -19,7 +20,7 @@ class TikToken:
     def __init__(
             self,
             encoding="r50k_base"
-            ) -> None:
+            ):
         """
         Initializing TikToken class.
 
@@ -37,7 +38,7 @@ class TikToken:
     def encode(
             self,
             text:str
-            ) -> list:
+            ):
         """
         Encode text to token IDs.
 
@@ -49,28 +50,28 @@ class TikToken:
         """
         return self.enc.encode(text)
 
-    def encode_special(
-            self,
-            special_token:bytes
-            ) -> list:
-        """
-        Method for encoding special tokens
+    # def encode_special(
+    #         self,
+    #         special_token:bytes
+    #         ):
+    #     """
+    #     Method for encoding special tokens
 
-        Args:
-            special_token (bytes): special token bytes.
+    #     Args:
+    #         special_token (bytes): special token bytes.
 
-        Returns:
-            list: list of token IDs for the special token.
-        """
+    #     Returns:
+    #         list: list of token IDs for the special token.
+    #     """
 
-        if isinstance(special_token, str):
-            special_token = special_token.encode("utf-8")
-        return self.enc.encode_single_token(special_token.decode('utf-8'))
+    #     if isinstance(special_token, str):
+    #         special_token = special_token.encode("utf-8")
+    #     return self.enc.encode_single_token(special_token.decode('utf-8'))
 
     def decode(
             self,
             token_ids:list
-            ) -> str:
+            ):
         """
         Decode token IDs to text.
 
@@ -85,7 +86,7 @@ class TikToken:
 def tokenize_data(
         input_path:str,
         output_path:str
-        ) -> None:
+        ):
     """
     Tokenizes training data
 
@@ -128,7 +129,7 @@ def main():
     decoded = tokenizer.decode(encoded)
     print(f"Decoded: {decoded}")
 
-def test_tokenized(path:str) -> None:
+def test_tokenized(path:str):
     """
     Tests the tokenized dataset to ensure that it looks as it should.
 

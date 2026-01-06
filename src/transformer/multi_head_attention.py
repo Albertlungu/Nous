@@ -38,7 +38,7 @@ class MultiHeadAttention:
             num_heads=8,
             num_blocks=8,
             dropout=0.0
-            ) -> None:
+            ):
         """
         Initializing MutliHeadAttention
 
@@ -77,7 +77,7 @@ class MultiHeadAttention:
         dropout=0.0,
         training=True,
         rng_key=None
-        ) -> jnp.ndarray:
+        ):
         """
         Pure function for jit computation
 
@@ -119,7 +119,7 @@ class MultiHeadAttention:
         scores = jnp.where(mask == 0, -1e9, scores) # See readme for what jnp.where does
 
         # Softmax to find weights
-        attn_weights = jax.nn.softmax(scores, axis=-1) # See readme for what axis=-1 is
+        attn_weights = jax.nn.softmax(scores, axis=-1)  # type: ignore  # See readme for what axis=-1 is
 
         if training and dropout > 0.0 and rng_key is not None:
             keep_prob = 1.0 - dropout
@@ -147,7 +147,7 @@ class MultiHeadAttention:
         head_dim:int,
         embedding_dim:int,
         past_kv=None
-        ) -> tuple[jnp.ndarray, tuple[jnp.ndarray, jnp.ndarray]]:
+        ):
         """
         Fwd pass with KV cache for faster generation
 
@@ -204,7 +204,7 @@ class MultiHeadAttention:
         mask = mask[None, None, :, :]
         scores = jnp.where(mask == 0, -1e9, scores)
 
-        attn_weights = jax.nn.softmax(scores, axis=-1)
+        attn_weights = jax.nn.softmax(scores, axis=-1)  # type: ignore
         attn_out = attn_weights @ V
 
         attn_out = attn_out.transpose(0, 2, 1, 3)
@@ -219,7 +219,7 @@ class MultiHeadAttention:
             self,
             x:jnp.ndarray,
             d_output:jnp.ndarray
-            ) -> tuple[dict, jnp.ndarray]:
+            ):
         """
         Most efficient version of backprop using JAX's vjp
 
@@ -241,7 +241,7 @@ class MultiHeadAttention:
     def get_params_and_grads(
             self,
             grads=None
-            ) -> list[dict]:
+            ):
         """
         Return params and grads in the format Trainer expects.
 
@@ -267,7 +267,7 @@ class MultiHeadAttention:
             {'value': self.W_O, 'grad': grads['W_O']},
         ]
 
-    def get_params(self) -> dict:
+    def get_params(self):
         """
         Gets attention layer parameters
 

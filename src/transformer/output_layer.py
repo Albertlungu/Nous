@@ -33,7 +33,7 @@ class OutputLayer:
     def __init__(
             self,
             embedding_layer: EmbeddingLayer
-            ) -> None:
+            ):
         """
         Initializes instance attributes for OutputLayer class.
 
@@ -52,7 +52,7 @@ class OutputLayer:
     def fwd(
         params:dict,
         transformer_output:jnp.ndarray
-        ) -> jnp.ndarray:
+        ):
         """
 
         Args:
@@ -68,7 +68,7 @@ class OutputLayer:
         # print(np.shape(self.logits))
         return logits
 
-    def get_params(self) -> dict:
+    def get_params(self):
         """
         Gets output layer parameters.
 
@@ -84,7 +84,7 @@ class OutputLayer:
             self,
             transformer_output:jnp.ndarray,
             d_output:jnp.ndarray
-            ) -> tuple[dict, jnp.ndarray]:
+            ):
         """
         Backward function
 
@@ -108,7 +108,7 @@ class OutputLayer:
         grads_params, d_input = vjp_fn(d_output)
         return grads_params, d_input
 
-    def get_params_and_grads(self) -> list[dict]:
+    def get_params_and_grads(self, grads: dict | None = None):
         """
         Returns parameters and gradients of OutputLayer
 
@@ -133,7 +133,7 @@ class OutputLayer:
             self,
             transformer_output:jnp.ndarray,
             temperature=1.0
-            ) -> jnp.ndarray:
+            ):
         """
         Samples the next token from the model's predictions.
 

@@ -12,7 +12,7 @@ from datasets import load_dataset # pylint: disable=no-member
 from api.paths import get_training_data_path
 
 
-def save_dolly(path:str) -> None:
+def save_dolly(path:str):
     """
     Load the Databricks Dolly-15k dataset and save it in a formatted text file.
 
@@ -42,7 +42,7 @@ def save_dolly(path:str) -> None:
 
     print(f"Successfully saved {len(ds)} examples to {path}")
 
-def save_alpaca(path:str) -> None:
+def save_alpaca(path:str):
     """
     Load the Alpaca dataset from HuggingFace
     Dataset size: 51,974 examples (20MB, 284,280 lines)
@@ -72,7 +72,7 @@ def save_alpaca(path:str) -> None:
 
     print(f"Successfully saved {len(ds)} examples to {path}")
 
-def save_wizardlm(path:str) -> None:
+def save_wizardlm(path:str):
     """
     Load the WizardLM dataset from HuggingFace
     Dataset size: 70,004 examples (126MB, 1,537,373 lines)
@@ -106,7 +106,7 @@ def save_wizardlm(path:str) -> None:
 
     print(f"Successfully saved {len(ds)} examples to {path}")
 
-def save_flan(path:str) -> None:
+def save_flan(path:str):
     """
     Load the FLAN 50K dataset from HuggingFace using streaming
     Dataset size: 50,000 examples (87MB, 1,962,003 lines)
@@ -141,7 +141,7 @@ def save_flan(path:str) -> None:
 
     print(f"Successfully saved {idx + 1} examples to {path}")
 
-def save_gpt_teacher(path:str) -> None:
+def save_gpt_teacher(path:str):
     """
     Load the GPT Teacher dataset from HuggingFace
     Dataset size: 89,260 examples (55MB, 534,010 lines)
@@ -175,7 +175,7 @@ def save_gpt_teacher(path:str) -> None:
 
     print(f"Successfully saved {len(ds)} examples to {path}")
 
-def save_trivia_qa(path:str) -> None:
+def save_trivia_qa(path:str):
     """
     Saves mandarjoshi/trivia_qa dataset from HuggingFace using Datasets module
 
@@ -207,7 +207,7 @@ def save_trivia_qa(path:str) -> None:
 
     print(f"Successfully saved {len(ds)} examples to {path}")
 
-def save_general_instruct(path:str, ds_len:int) -> None:
+def save_general_instruct(path:str, ds_len:int):
     """
     Save general instruction dataset from HuggingFace's Teknium/GPTeacher-General-Instruct dataset
 
@@ -239,7 +239,7 @@ def save_general_instruct(path:str, ds_len:int) -> None:
     print(f"Skipped {skipped_count} examples")
 
 
-def load_text_file(path:str) -> list:
+def load_text_file(path:str):
     """
     Load a text file for training.
 
@@ -258,7 +258,7 @@ def load_text_file(path:str) -> list:
 
 
 def combine_all_datasets(output_path:str, alpaca_path:str = None, wizardlm_path:str = None,
-                         flan_path:str = None, gpt_teacher_path:str = None) -> None:
+                         flan_path:str = None, gpt_teacher_path:str = None):
     """
     Combine all datasets into a single file.
 
