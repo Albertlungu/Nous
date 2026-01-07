@@ -1,3 +1,4 @@
 *.xml filter=lfs diff=lfs merge=lfs -text
 *.pkl filter=lfs diff=lfs merge=lfs -text
+*.txt filter=lfs diff=lfs merge=lfs -text
 electron-app/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron[[:space:]]Framework.framework/Versions/A/Electron[[:space:]]Framework filter=lfs diff=lfs merge=lfs -text

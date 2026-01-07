@@ -9,14 +9,19 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 import pickle
-from tqdm import tqdm
 from api.paths import get_training_data_path
 from src.tokenizer.tiktoken_tokenizer import TikToken
 
 
 def tokenize_corpus(input_path, output_path, target_tokens=46_000_000_000):
     """
-    Tokenize the text corpus and save as pickle file
+    Tokenize the text corpus and save as pickle file (STREAMING VERSION)
+
+    Processes the corpus in a streaming fashion:
+    - Reads line by line (not all at once)
+    - Tokenizes one example at a time
+    - Writes each tokenized example to disk immediately
+    - Never keeps the full token list in memory
 
     Args:
         input_path: Path to nous_corpus.txt
@@ -24,10 +29,10 @@ def tokenize_corpus(input_path, output_path, target_tokens=46_000_000_000):
         target_tokens: Maximum tokens to process (default 46B)
 
     Returns:
-        List of tokenized sequences
+        Dictionary with statistics (not the actual tokens)
     """
     print("="*80)
-    print("TOKENIZING NOUS CORPUS")
+    print("TOKENIZING NOUS CORPUS (STREAMING MODE)")
     print("="*80)
 
     # Initialize tokenizer
@@ -35,134 +40,192 @@ def tokenize_corpus(input_path, output_path, target_tokens=46_000_000_000):
     tokenizer = TikToken()
     print(f"✓ Loaded tokenizer (vocab size: {tokenizer.vocab_size:,})")
 
-    # Read the corpus
-    print(f"\nReading corpus from {input_path}...")
-
+    # Check input file exists
+    print(f"\nPreparing to stream from {input_path}...")
     if not os.path.exists(input_path):
         print(f"✗ Error: File not found at {input_path}")
         print("Please run combine_datasets.py first!")
         return None
 
-    with open(input_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    # Split by double newlines to get individual examples
-    print("\nSplitting into examples...")
-    examples = [ex.strip() for ex in content.split('\n\n') if ex.strip()]
-    print(f"✓ Found {len(examples):,} examples")
-
-    # Tokenize all examples
+    # Streaming tokenization
     print(f"\n{'='*80}")
-    print("TOKENIZING ALL EXAMPLES...")
+    print("STREAMING TOKENIZATION...")
     print(f"{'='*80}")
 
-    token_ids = []
     total_tokens = 0
+    total_examples = 0
     skipped = 0
+    token_lengths = []  # For statistics (just lengths, not actual tokens)
+    min_tokens = float('inf')
+    max_tokens = 0
 
-    for i, text in enumerate(tqdm(examples, desc="Tokenizing")):
-        try:
-            # Encode the text
-            ids = tokenizer.encode(text)
+    # Open output file for writing tokenized examples one by one
+    with open(output_path, "wb") as out_f:
+        with open(input_path, "r", encoding="utf-8") as in_f:
+            current_example_lines = []
 
-            # Add EOS token
-            ids.append(tokenizer.eos_token_id)
+            for line in in_f:
+                # Remove trailing newline
+                line = line.rstrip('\n')
 
-            # Track tokens
-            total_tokens += len(ids)
+                # Empty line indicates end of example (examples separated by \n\n)
+                if line == '':
+                    if current_example_lines:
+                        # Join lines to reconstruct the example
+                        text = '\n'.join(current_example_lines).strip()
 
-            # Add to list
-            token_ids.append(ids)
+                        if text:  # Only process non-empty examples
+                            try:
+                                # Tokenize this example
+                                ids = tokenizer.encode(text)
+                                ids.append(tokenizer.eos_token_id)
 
-            # Stop if we hit target
-            if total_tokens >= target_tokens:
-                print(f"\n✓ Reached target of {target_tokens:,} tokens")
-                break
+                                # Write immediately to disk (streaming write)
+                                pickle.dump(ids, out_f)
 
-            # Progress update every 10k examples
-            if (i + 1) % 10000 == 0:
-                print(f"  Processed {i + 1:,} examples | {total_tokens:,} tokens so far")
+                                # Update statistics (keep only counts, not tokens)
+                                token_count = len(ids)
+                                total_tokens += token_count
+                                total_examples += 1
+                                min_tokens = min(min_tokens, token_count)
+                                max_tokens = max(max_tokens, token_count)
+                                token_lengths.append(token_count)
 
-        except Exception as e:
-            skipped += 1
-            if skipped <= 10:  # Only print first 10 errors
-                print(f"\nWarning: Skipped example {i} due to error: {e}")
-            continue
+                                # Progress update every 10k examples
+                                if total_examples % 10000 == 0:
+                                    print(f"  Processed {total_examples:,} examples | {total_tokens:,} tokens so far")
+
+                            except Exception as e:
+                                skipped += 1
+                                if skipped <= 10:
+                                    print(f"\nWarning: Skipped example due to error: {e}")
+
+                        # Clear the buffer - this is key for streaming!
+                        current_example_lines = []
+                else:
+                    # Accumulate lines for current example
+                    current_example_lines.append(line)
+
+            # Handle last example if file doesn't end with blank line
+            if current_example_lines:
+                text = '\n'.join(current_example_lines).strip()
+                if text:
+                    try:
+                        ids = tokenizer.encode(text)
+                        ids.append(tokenizer.eos_token_id)
+                        pickle.dump(ids, out_f)
+
+                        token_count = len(ids)
+                        total_tokens += token_count
+                        total_examples += 1
+                        min_tokens = min(min_tokens, token_count)
+                        max_tokens = max(max_tokens, token_count)
+                        token_lengths.append(token_count)
+
+                    except Exception as e:
+                        skipped += 1
 
     # Print statistics
     print(f"\n{'='*80}")
     print("TOKENIZATION COMPLETE")
     print(f"{'='*80}")
-    print(f"Total examples: {len(token_ids):,}")
+    print(f"Total examples: {total_examples:,}")
     print(f"Total tokens: {total_tokens:,}")
-    print(f"Average tokens/example: {total_tokens / len(token_ids):.1f}")
+    print(f"Average tokens/example: {total_tokens / total_examples:.1f}" if total_examples > 0 else "N/A")
     print(f"Skipped examples: {skipped:,}")
     print(f"{'='*80}")
 
     # Calculate token distribution
-    token_lengths = [len(ids) for ids in token_ids]
-    print(f"\nToken Distribution:")
-    print(f"  Min tokens: {min(token_lengths):,}")
-    print(f"  Max tokens: {max(token_lengths):,}")
-    print(f"  Median tokens: {sorted(token_lengths)[len(token_lengths)//2]:,}")
-
-    # Save tokenized data
-    print(f"\n{'='*80}")
-    print(f"Saving tokenized data to {output_path}...")
-    print(f"{'='*80}")
-
-    with open(output_path, "wb") as f:
-        pickle.dump(token_ids, f)
+    if token_lengths:
+        print(f"\nToken Distribution:")
+        print(f"  Min tokens: {min_tokens:,}")
+        print(f"  Max tokens: {max_tokens:,}")
+        print(f"  Median tokens: {sorted(token_lengths)[len(token_lengths)//2]:,}")
 
     # Print file size
+    print(f"\n{'='*80}")
+    print(f"Saved tokenized data to {output_path}")
+    print(f"{'='*80}")
     file_size_bytes = os.path.getsize(output_path)
     file_size_gb = file_size_bytes / (1024 ** 3)
     print(f"✓ Saved successfully!")
     print(f"  File size: {file_size_gb:.2f} GB")
 
-    return token_ids
+    # Return statistics instead of the actual token data
+    return {
+        'total_examples': total_examples,
+        'total_tokens': total_tokens,
+        'skipped': skipped,
+        'min_tokens': min_tokens if min_tokens != float('inf') else 0,
+        'max_tokens': max_tokens
+    }
 
 
 def verify_tokenized_data(pkl_path):
     """
-    Load and verify the tokenized data
+    Load and verify the tokenized data (STREAMING VERSION)
+
+    The pickle file contains multiple pickled objects (one per example),
+    so we read them one at a time without loading everything into memory.
 
     Args:
         pkl_path: Path to nous_corpus.pkl
     """
     print(f"\n{'='*80}")
-    print("VERIFYING TOKENIZED DATA")
+    print("VERIFYING TOKENIZED DATA (STREAMING MODE)")
     print(f"{'='*80}")
 
-    print(f"Loading {pkl_path}...")
+    print(f"Streaming verification from {pkl_path}...")
+
+    total_examples = 0
+    total_tokens = 0
+    first_example_ids = None
+
+    # Stream through the pickle file without loading all data
     with open(pkl_path, "rb") as f:
-        token_ids = pickle.load(f)
+        while True:
+            try:
+                # Load one example at a time
+                ids = pickle.load(f)
 
-    print(f"✓ Loaded successfully!")
+                # Capture first example for display
+                if first_example_ids is None:
+                    first_example_ids = ids
+
+                # Update stats
+                total_examples += 1
+                total_tokens += len(ids)
+
+            except EOFError:
+                # End of file reached
+                break
+
+    print(f"✓ Verified successfully!")
     print(f"\nDataset Statistics:")
-    print(f"  Total examples: {len(token_ids):,}")
-    print(f"  Total tokens: {sum(len(ids) for ids in token_ids):,}")
-    print(f"  Average tokens/example: {sum(len(ids) for ids in token_ids) / len(token_ids):.1f}")
+    print(f"  Total examples: {total_examples:,}")
+    print(f"  Total tokens: {total_tokens:,}")
+    print(f"  Average tokens/example: {total_tokens / total_examples:.1f}" if total_examples > 0 else "N/A")
 
-    # Show first example
-    print(f"\nFirst example (first 10 token IDs):")
-    print(f"  {token_ids[0][:10]}...")
+    # Show first example if we have one
+    if first_example_ids:
+        print(f"\nFirst example (first 10 token IDs):")
+        print(f"  {first_example_ids[:10]}...")
 
-    # Initialize tokenizer to decode
-    tokenizer = TikToken()
+        # Initialize tokenizer to decode
+        tokenizer = TikToken()
 
-    # Decode first example
-    decoded = tokenizer.decode(token_ids[0][:100])  # First 100 tokens
-    print(f"\nFirst example decoded (first 100 tokens):")
-    print(f"  {decoded}...")
+        # Decode first example
+        decoded = tokenizer.decode(first_example_ids[:100])  # First 100 tokens
+        print(f"\nFirst example decoded (first 100 tokens):")
+        print(f"  {decoded}...")
 
 
 def main():
     """
-    Main function to tokenize nous_corpus.txt
+    Main function to tokenize nous_corpus.txt (STREAMING VERSION)
     """
     print("="*80)
-    print("NOUS CORPUS TOKENIZER")
+    print("NOUS CORPUS TOKENIZER (STREAMING MODE)")
     print("Using TikToken tokenizer")
     print("="*80)
 
@@ -170,14 +233,14 @@ def main():
     input_path = get_training_data_path('nous_corpus.txt')
     output_path = get_training_data_path('nous_corpus.pkl')
 
-    # Tokenize
-    token_ids = tokenize_corpus(
+    # Tokenize (returns statistics dict, not actual tokens)
+    stats = tokenize_corpus(
         input_path=input_path,
         output_path=output_path,
         target_tokens=46_000_000_000
     )
 
-    if token_ids is not None:
+    if stats is not None:
         # Verify
         verify_tokenized_data(output_path)
 
