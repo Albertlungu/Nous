@@ -1,5 +1,3 @@
-jax[cuda12]
-matplotlib
-tiktoken
-datasets
-numpy
+version https://git-lfs.github.com/spec/v1
+oid sha256:90e0c2c370ac17bd61e05ef2094f4cc4228529946effcbe8143eac5d906b4a2c
+size 47

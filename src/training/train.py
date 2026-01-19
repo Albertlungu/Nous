@@ -79,7 +79,8 @@ class Trainer:
                  min_lr=0.0,
                  use_lr_schedule=True,
                  warmup_steps=500,
-                 dropout=0.0
+                 dropout=0.0,
+                 dtype=None
                 ):
         """
         Initialize Trainer with model architecture.
@@ -103,7 +104,9 @@ class Trainer:
                                               Defaults to True.
             warmup_steps (int, optional): Number of warmup steps. Defaults to 500.
             dropout (float, optional): Dropout probability. Defaults to 0.0.
+            dtype (jnp.dtype, optional): Data type for model weights. Defaults to jnp.bfloat16.
         """
+        self.dtype = dtype if dtype is not None else jnp.bfloat16
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
         self.embedding_dim = embedding_dim
@@ -120,7 +123,8 @@ class Trainer:
             vocab_size=tokenizer.vocab_size,
             embedding_dim=embedding_dim,
             max_seq_length=max_seq_length,
-            dropout=dropout
+            dropout=dropout,
+            dtype=self.dtype
         )
 
         if token_ids and training_data is not None:
@@ -147,14 +151,15 @@ class Trainer:
             dropout=dropout,
             use_moe=use_moe,
             num_experts=num_experts,
-            experts_per_token=experts_per_token
+            experts_per_token=experts_per_token,
+            dtype=self.dtype
         )
 
-        self.output_layer = OutputLayer(self.embedding_layer)
+        self.output_layer = OutputLayer(self.embedding_layer, dtype=self.dtype)
         self.loss_fn = CrossEntropyLoss()
 
-        self.final_gamma = jnp.ones(embedding_dim)
-        self.final_beta = jnp.zeros(embedding_dim)
+        self.final_gamma = jnp.ones(embedding_dim, dtype=self.dtype)
+        self.final_beta = jnp.zeros(embedding_dim, dtype=self.dtype)
 
         self.lr = lr
 
@@ -1167,7 +1172,7 @@ class Trainer:
                 batch_token_ids = jnp.array([token_ids], dtype=jnp.int32)
 
                 # Forward pass
-                transformer_out, logits = self.fwd(
+                transformer_out, logits, _ = self.fwd(
                     embed_params,
                     stack_params,
                     output_params,
@@ -1249,6 +1254,90 @@ class Trainer:
         # Return the generated token IDs
         generated_token_ids = token_ids[prompt_length:]
         return "", generated_token_ids
+
+    def generate_stream(self,
+                        prompt:str,
+                        max_length=50,
+                        temperature=0.7,
+                        top_k=40,
+                        repetition_penalty=1.2
+                        ):
+        """
+        Generate text token by token, yielding each token as it's generated.
+
+        Args:
+            prompt (str): Input prompt
+            max_length (int): Maximum tokens to generate
+            temperature (float): Sampling temperature
+            top_k (int): Top-k filtering
+            repetition_penalty (float): Penalty for repeating tokens
+
+        Yields:
+            int: Each generated token ID as it's produced
+        """
+        token_ids = self.tokenizer.encode(prompt)
+        token_ids = [min(tid, self.tokenizer.vocab_size - 1) for tid in token_ids]
+        prompt_length = len(token_ids)
+
+        embed_params = self.embedding_layer.get_params()
+        stack_params = [block.get_params() for block in self.transformer_stack.blocks]
+        output_params = self.output_layer.get_params()
+        final_ln_params = {'gamma': self.final_gamma, 'beta': self.final_beta}
+
+        vocab_size = self.tokenizer.vocab_size
+
+        with jax.default_device(jax.devices()[0]):
+            for _ in range(max_length):
+                batch_token_ids = jnp.array([token_ids], dtype=jnp.int32)
+
+                _, logits, _ = self.fwd(
+                    embed_params,
+                    stack_params,
+                    output_params,
+                    final_ln_params,
+                    batch_token_ids
+                )
+
+                next_logits = logits[0, -1] / temperature
+
+                if len(next_logits) > vocab_size:
+                    next_logits = next_logits.at[vocab_size:].set(-jnp.inf)
+
+                if repetition_penalty != 1.0:
+                    unique_tokens = jnp.array(list(set(token_ids)), dtype=jnp.int32)
+                    unique_tokens = unique_tokens[unique_tokens < vocab_size]
+
+                    penalty_mask = jnp.zeros(vocab_size, dtype=jnp.bool_)
+                    penalty_mask = penalty_mask.at[unique_tokens].set(True)
+
+                    penalties = jnp.where(
+                        penalty_mask,
+                        jnp.where(next_logits > 0, 1.0 / repetition_penalty, repetition_penalty),
+                        1.0
+                    )
+                    next_logits = next_logits * penalties
+
+                if top_k is not None:
+                    top_k_indices = jnp.argsort(next_logits)[-top_k:]
+                    mask = jnp.ones_like(next_logits) * -jnp.inf
+                    mask = mask.at[top_k_indices].set(next_logits[top_k_indices])
+                    next_logits = mask
+
+                probs = jax.nn.softmax(next_logits)
+                probs_np = np.array(probs, dtype=np.float32)
+                probs_np = probs_np / probs_np.sum()
+
+                next_token = np.random.choice(len(probs_np), p=probs_np)
+                next_token = int(next_token)
+
+                if next_token >= vocab_size:
+                    next_token = vocab_size - 1
+
+                if next_token == self.tokenizer.eos_token_id:
+                    break
+
+                token_ids.append(next_token)
+                yield next_token
 
     def create_batches(self, batch_size=32):
         """

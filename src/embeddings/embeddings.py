@@ -36,7 +36,8 @@ class EmbeddingLayer:
             embedding_dim=None,
             max_seq_length=256,
             n=10000,
-            dropout=0.0
+            dropout=0.0,
+            dtype=None
             ):
         """
         Initializes an EmbeddingLayer object.
@@ -47,7 +48,9 @@ class EmbeddingLayer:
             max_seq_length (int, optional): Maximum sequence length. Defaults to 256.
             n (int, optional): Positional encoding frequency parameter. Defaults to 10000.
             dropout (float, optional): Dropout probability. Defaults to 0.0.
+            dtype (jnp.dtype, optional): Data type for weights. Defaults to jnp.bfloat16.
         """
+        self.dtype = dtype if dtype is not None else jnp.bfloat16
         self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim or self.default_embedding_dim
         self.max_seq_length = max_seq_length
@@ -56,12 +59,12 @@ class EmbeddingLayer:
 
         # Create key inside __init__, not at class level
         self.key = jax.random.PRNGKey(42)
-        self.embeddings = jax.random.normal(self.key, (self.vocab_size, self.embedding_dim)) * 0.02
+        self.embeddings = (jax.random.normal(self.key, (self.vocab_size, self.embedding_dim)) * 0.02).astype(self.dtype)
             # Basically, random numbers are selected for the vectors right now as placeholder
             # so that the algorithm doesn't see symmetry and simply assign the same
             # vector values to every word upon training
 
-        self.positional_encoding_class = PositionalEncoding(self.embedding_dim, self.max_seq_length)
+        self.positional_encoding_class = PositionalEncoding(self.embedding_dim, self.max_seq_length, dtype=self.dtype)
         self.positional_encodings = self.positional_encoding_class._create_positional_encoding(n)
             # using the function that will be declared later to get the
             # positional encoding of a certain word

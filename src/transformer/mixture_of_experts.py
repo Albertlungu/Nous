@@ -27,7 +27,8 @@ class MOE:
             num_blocks=2,
             scale=0.02,
             dropout=0.0,
-            activation="gelu"
+            activation="gelu",
+            dtype=None
             ):
         """
         Initialization of MoE layer
@@ -41,8 +42,9 @@ class MOE:
             scale (float, optional): Uhhhhh. Defaults to 0.02.
             dropout (float, optional): Probability of dropout. Defaults to 0.0.
             activation (str, optional): Type of dropout. Defaults to "gelu".
+            dtype (jnp.dtype, optional): Data type for weights. Defaults to jnp.bfloat16.
         """
-
+        self.dtype = dtype if dtype is not None else jnp.bfloat16
         self.embedding_dim = embedding_dim
         self.ff_dim = ff_dim if ff_dim is not None else 4 * self.embedding_dim
         self.num_experts = num_experts
@@ -53,11 +55,11 @@ class MOE:
         self.activation = activation
 
         # Router: decides which experts to use
-        self.router_W = jax.random.normal(
+        self.router_W = (jax.random.normal(
             jax.random.PRNGKey(45),
             (self.embedding_dim, self.num_experts)
-        ) * self.scale
-        self.router_B = jnp.zeros(self.num_experts)
+        ) * self.scale).astype(self.dtype)
+        self.router_B = jnp.zeros(self.num_experts, dtype=self.dtype)
 
         # Create experts
         key = jax.random.PRNGKey(46)
@@ -86,10 +88,10 @@ class MOE:
         residual_scale = self.scale / jnp.sqrt(2.0 * self.num_blocks)
 
         return {
-            'W1': jax.random.normal(k1, (self.embedding_dim, self.ff_dim)) * self.scale,
-            'B1': jnp.zeros(self.ff_dim),
-            'W2': jax.random.normal(k2, (self.ff_dim, self.embedding_dim)) * residual_scale,
-            'B2': jnp.zeros(self.embedding_dim)
+            'W1': (jax.random.normal(k1, (self.embedding_dim, self.ff_dim)) * self.scale).astype(self.dtype),
+            'B1': jnp.zeros(self.ff_dim, dtype=self.dtype),
+            'W2': (jax.random.normal(k2, (self.ff_dim, self.embedding_dim)) * residual_scale).astype(self.dtype),
+            'B2': jnp.zeros(self.embedding_dim, dtype=self.dtype)
         }
 
     def get_params(self):

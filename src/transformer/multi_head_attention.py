@@ -37,7 +37,8 @@ class MultiHeadAttention:
             embedding_layer: EmbeddingLayer,
             num_heads=8,
             num_blocks=8,
-            dropout=0.0
+            dropout=0.0,
+            dtype=None
             ):
         """
         Initializing MutliHeadAttention
@@ -47,7 +48,9 @@ class MultiHeadAttention:
             num_heads (int, optional): Number of heads for multi-head attention. Defaults to 8.
             num_blocks(int, optional): Number of transformer blocks. Defaults to 1.
             dropout (float, optional): Dropout probability. Defaults to 0.0.
+            dtype (jnp.dtype, optional): Data type for weights. Defaults to jnp.bfloat16.
         """
+        self.dtype = dtype if dtype is not None else jnp.bfloat16
         self.embedding_dim = embedding_layer.embedding_dim
 
         self.num_heads = num_heads
@@ -58,12 +61,12 @@ class MultiHeadAttention:
         k1, k2, k3, k4 = jax.random.split(key, 4)
 
         scale = 0.02
-        self.W_Q = jax.random.normal(k1, (self.embedding_dim, self.embedding_dim)) * scale
-        self.W_K = jax.random.normal(k2, (self.embedding_dim, self.embedding_dim)) * scale
-        self.W_V = jax.random.normal(k3, (self.embedding_dim, self.embedding_dim)) * scale
+        self.W_Q = (jax.random.normal(k1, (self.embedding_dim, self.embedding_dim)) * scale).astype(self.dtype)
+        self.W_K = (jax.random.normal(k2, (self.embedding_dim, self.embedding_dim)) * scale).astype(self.dtype)
+        self.W_V = (jax.random.normal(k3, (self.embedding_dim, self.embedding_dim)) * scale).astype(self.dtype)
 
         residual_scale = scale / jnp.sqrt(2.0 * num_blocks)
-        self.W_O = jax.random.normal(k4, (self.embedding_dim, self.embedding_dim)) * residual_scale
+        self.W_O = (jax.random.normal(k4, (self.embedding_dim, self.embedding_dim)) * residual_scale).astype(self.dtype)
 
     @staticmethod
     def fwd(

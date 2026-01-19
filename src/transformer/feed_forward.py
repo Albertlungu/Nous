@@ -33,6 +33,7 @@ class FeedForward():
             num_blocks=8,
             dropout=0.0,
             ff_dim=None,
+            dtype=None
             ):
         """
         Initializes the FeedForward network.
@@ -44,7 +45,9 @@ class FeedForward():
                           4 * embedding_dim.
             num_blocks (int, optional): Number of transformer blocks. Defaults to 8.
             dropout (float, optional): Dropout probability. Defaults to 0.0.
+            dtype (jnp.dtype, optional): Data type for weights. Defaults to jnp.bfloat16.
         """
+        self.dtype = dtype if dtype is not None else jnp.bfloat16
         # Use the actual embedding dimension from the embeddings instance, not the class default
         self.embedding_dim = embeddings.embedding_dim
         self.ff_dim = ff_dim or self.embedding_dim * 4 # Feed Forward dimension
@@ -59,15 +62,15 @@ class FeedForward():
 
         # Layers with proper initialization
         scale = 0.02
-        self.W1 = jax.random.normal(k1, (self.embedding_dim, self.ff_dim)) * scale
+        self.W1 = (jax.random.normal(k1, (self.embedding_dim, self.ff_dim)) * scale).astype(self.dtype)
         # Weight first layer
-        self.B1 = jnp.zeros(self.ff_dim) # Bias first layer
+        self.B1 = jnp.zeros(self.ff_dim, dtype=self.dtype) # Bias first layer
 
         # W2 is a residual projection, scale by depth
         residual_scale = scale / jnp.sqrt(2.0 * num_blocks)
-        self.W2 = jax.random.normal(k2, (self.ff_dim, self.embedding_dim)) * residual_scale
+        self.W2 = (jax.random.normal(k2, (self.ff_dim, self.embedding_dim)) * residual_scale).astype(self.dtype)
         # Weight second layer with residual scaling
-        self.B2 = jnp.zeros(self.embedding_dim) # Bias second layer
+        self.B2 = jnp.zeros(self.embedding_dim, dtype=self.dtype) # Bias second layer
 
     @staticmethod
     def gelu(x):

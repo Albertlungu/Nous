@@ -141,21 +141,13 @@ class ModelInterface:
             raise Exception("Model not loaded")
 
         with self.lock:
-            import io
-            from contextlib import redirect_stdout
-
-            output = io.StringIO()
-            with redirect_stdout(output):
-                _, token_ids = self.trainer.generate(
-                    prompt=prompt,
-                    max_length=max_tokens,
-                    temperature=temperature,
-                    top_k=top_k,
-                    repetition_penalty=1.2,
-                    debug=False
-                )
-
-            for token_id in token_ids:
+            for token_id in self.trainer.generate_stream(
+                prompt=prompt,
+                max_length=max_tokens,
+                temperature=temperature,
+                top_k=top_k,
+                repetition_penalty=1.2
+            ):
                 token_text = self.tokenizer.decode([token_id])
                 yield token_text
 

@@ -32,21 +32,24 @@ class OutputLayer:
     """
     def __init__(
             self,
-            embedding_layer: EmbeddingLayer
+            embedding_layer: EmbeddingLayer,
+            dtype=None
             ):
         """
         Initializes instance attributes for OutputLayer class.
 
         Args:
             embedding_layer (EmbeddingLayer): EmbeddingLayer class.
+            dtype (jnp.dtype, optional): Data type for weights. Defaults to jnp.bfloat16.
         """
+        self.dtype = dtype if dtype is not None else jnp.bfloat16
         self.embedding_layer = embedding_layer
         self.embedding_dim = self.embedding_layer.embedding_dim
         self.vocab_size = embedding_layer.vocab_size
 
         self.W_out = embedding_layer.embeddings.T # Weight matrix shape: (embedding_dim, vocab_size)
         # self.W_out = np.random.randn(self.embedding_dim, self.vocab_size) * 0.01
-        self.b_out = jnp.zeros(self.vocab_size) # Bias vector
+        self.b_out = jnp.zeros(self.vocab_size, dtype=self.dtype) # Bias vector
 
     @staticmethod
     def fwd(

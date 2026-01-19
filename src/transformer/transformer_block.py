@@ -47,7 +47,8 @@ class TransformerBlock:
             dropout=0.0,
             use_moe=True,
             num_experts=8,
-            experts_per_token=2
+            experts_per_token=2,
+            dtype=None
             ):
         """
         Initializing instance variables for the TransformerBlock class
@@ -60,21 +61,22 @@ class TransformerBlock:
             use_moe (bool, optional): Whether to use MoE instead of standard FFN. Defaults to True.
             num_experts (int, optional): Total number of experts. Defaults to 8.
             experts_per_token (int, optional): How many experts to use per token. Defaults to 2.
+            dtype (jnp.dtype, optional): Data type for weights. Defaults to jnp.bfloat16.
         """
-
+        self.dtype = dtype if dtype is not None else jnp.bfloat16
         self.embedding_dim = embedding_layer.embedding_dim
         self.num_heads = num_heads
 
-        self.attention_layer = MultiHeadAttention(embedding_layer, num_heads, num_blocks, dropout)
-        self.ffn = FeedForward(embedding_layer, num_blocks=num_blocks, dropout=dropout)
+        self.attention_layer = MultiHeadAttention(embedding_layer, num_heads, num_blocks, dropout, dtype=self.dtype)
+        self.ffn = FeedForward(embedding_layer, num_blocks=num_blocks, dropout=dropout, dtype=self.dtype)
 
-        self.gamma_1 = jnp.ones((self.embedding_dim,))
-        self.beta_1 = jnp.zeros((self.embedding_dim,))
-        self.gamma_2 = jnp.ones((self.embedding_dim,))
-        self.beta_2 = jnp.zeros((self.embedding_dim,))
+        self.gamma_1 = jnp.ones((self.embedding_dim,), dtype=self.dtype)
+        self.beta_1 = jnp.zeros((self.embedding_dim,), dtype=self.dtype)
+        self.gamma_2 = jnp.ones((self.embedding_dim,), dtype=self.dtype)
+        self.beta_2 = jnp.zeros((self.embedding_dim,), dtype=self.dtype)
 
-        self.gamma_cross = jnp.ones((self.embedding_dim,))
-        self.beta_cross = jnp.zeros((self.embedding_dim,))
+        self.gamma_cross = jnp.ones((self.embedding_dim,), dtype=self.dtype)
+        self.beta_cross = jnp.zeros((self.embedding_dim,), dtype=self.dtype)
 
         self.use_moe = use_moe
 
@@ -86,13 +88,15 @@ class TransformerBlock:
                 num_experts=num_experts,
                 experts_per_token=experts_per_token,
                 num_blocks=num_blocks,
-                dropout=dropout
+                dropout=dropout,
+                dtype=self.dtype
             )
         else:
             self.ffn = FeedForward(
                 embeddings=embedding_layer,
                 num_blocks=num_blocks,
-                dropout=dropout
+                dropout=dropout,
+                dtype=self.dtype
             )
 
     @staticmethod

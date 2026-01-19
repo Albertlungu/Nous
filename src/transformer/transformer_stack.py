@@ -29,7 +29,8 @@ class TransformerStack:
             dropout=0.0,
             use_moe=True,
             num_experts=8,
-            experts_per_token=2
+            experts_per_token=2,
+            dtype=None
             ):
         """
         Initialize stack of transformer blocks.
@@ -42,7 +43,9 @@ class TransformerStack:
             use_moe (bool, optional): Whether to use MoE instead of standard FFN. Defaults to True.
             num_experts (int, optional): Total number of experts. Defaults to 8.
             experts_per_token (int, optional): How many experts to use per token. Defaults to 2.
+            dtype (jnp.dtype, optional): Data type for weights. Defaults to jnp.bfloat16.
         """
+        self.dtype = dtype if dtype is not None else jnp.bfloat16
         self.num_blocks = num_blocks
         self.embedding_dim = embedding_layer.embedding_dim
         self.num_heads = num_heads
@@ -58,7 +61,8 @@ class TransformerStack:
                 embedding_layer, num_heads, num_blocks, dropout,
                 use_moe=use_moe,
                 num_experts=num_experts,
-                experts_per_token=experts_per_token)
+                experts_per_token=experts_per_token,
+                dtype=self.dtype)
             for _ in range(num_blocks)
         ]
 

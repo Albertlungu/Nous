@@ -20,7 +20,8 @@ class PositionalEncoding:
     def __init__(
             self,
             embedding_dim:int,
-            max_seq_length=256
+            max_seq_length=256,
+            dtype=None
             ):
         """
         Initialize the positional encoding generator.
@@ -28,9 +29,11 @@ class PositionalEncoding:
         Args:
             embedding_dim (int): Embedding dimension.
             max_seq_length (int, optional): Maximum sequence length. Defaults to 256.
+            dtype (jnp.dtype, optional): Data type for encoding. Defaults to jnp.bfloat16.
         """
         self.max_seq_length = max_seq_length
         self.embedding_dim = embedding_dim
+        self.dtype = dtype if dtype is not None else jnp.bfloat16
 
     def _create_positional_encoding(
             self,
@@ -53,4 +56,4 @@ class PositionalEncoding:
         P = pos * angle_rates
         P = P.at[:, 0::2].set(jnp.sin(P[:, 0::2]))
         P = P.at[:, 1::2].set(jnp.cos(P[:, 1::2]))
-        return P
+        return P.astype(self.dtype)
