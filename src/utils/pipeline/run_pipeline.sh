@@ -6,7 +6,7 @@
 echo "================================================================================"
 echo "NOUS CORPUS DATA PIPELINE"
 echo "================================================================================"
-echo "Target: 46B tokens for 2.3B parameter model"
+echo "Target: 100B tokens for 9B parameter model"
 echo "Output: training_data/nous_corpus.txt and nous_corpus.pkl"
 echo "================================================================================"
 echo ""
