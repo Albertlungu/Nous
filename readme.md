@@ -18,9 +18,9 @@
 
 But what **makes this different?**
 
-Well, up to date, I haven't yet found a model for which I can customize literally anything with ease. Every GitHub repo that I've seen requires you to go into the depths of the model to look for `num_heads` or `embedding_dim` and read the entire 6.7k line readme file (sorta like this one).
+Well, up to date, I haven't yet found a model for which I can customize literally anything with ease. Every GitHub repo that I've seen requires you to go into the depths of the model to look for `num_heads` or `embedding_dim` and read the entire readme file.
 
-My point is that this app, νοῦς, allows you to do exactly that: configure literally any part of the model with ease through an Electron app. This means that you can use:
+My point is that this app, Nous, allows you to do exactly that: configure literally any part of the model with ease through an Electron app. This means that you can use:
 - Custom datasets
 - Custom tokenizers (I have a BPE Tokenizer class that you can use, but it's kinda slow, so I also use TikToken)
 - Custom number of attention heads, stacks, embedding dimension, max sequence length, epochs, batch size, learning rate, warmup steps
@@ -32,7 +32,7 @@ My point is that this app, νοῦς, allows you to do exactly that: configure l
 ```
 
 ## Quickstart
-Download the νοῦς app (.dmg file) from the releases page and follow the onscreen instructions. Then, you may explore the app as you wish.
+Download the Nous app (.dmg file) from the releases page and follow the onscreen instructions. Then, you may explore the app as you wish.
 
 A few notes:
 1. The chat tab is for chatting with the current model. You can change generation settings in the top right corner by clicking on the gear icon.
