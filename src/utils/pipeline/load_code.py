@@ -1,6 +1,6 @@
 """
 Code Dataset Loaders
-Target: 9B tokens total (7B from The Stack + 2B from Evol-CodeAlpaca)
+Target: 9B tokens total (7B from GitHub Code + 2B from Evol-CodeAlpaca)
 Programming capabilities across multiple languages
 """
 
@@ -12,9 +12,9 @@ from datasets import load_dataset
 from tqdm import tqdm
 
 
-def load_the_stack(num_tokens=7_000_000_000, avg_tokens=600):
+def load_github_code(num_tokens=7_000_000_000, avg_tokens=600):
     """
-    Load The Stack (deduplicated code dataset)
+    Load GitHub Code dataset (codeparrot/github-code - 115M files, 1TB)
 
     Args:
         num_tokens: Target number of tokens to load
@@ -24,12 +24,12 @@ def load_the_stack(num_tokens=7_000_000_000, avg_tokens=600):
         List of formatted code strings
     """
     print("\n" + "="*60)
-    print("Loading The Stack (deduplicated code)...")
+    print("Loading GitHub Code (codeparrot/github-code)...")
     print(f"Target tokens: {num_tokens:,}")
     print("="*60)
 
     num_examples = int(num_tokens / avg_tokens)
-    languages = ["python", "javascript", "java", "typescript", "cpp", "go", "rust"]
+    languages = ["Python", "JavaScript", "Java", "TypeScript", "C++", "Go", "Rust"]
     examples_per_lang = num_examples // len(languages)
 
     formatted = []
@@ -39,15 +39,15 @@ def load_the_stack(num_tokens=7_000_000_000, avg_tokens=600):
             print(f"\nLoading {lang} code...")
             try:
                 ds = load_dataset(
-                    "bigcode/the-stack-dedup",
-                    data_dir=f"data/{lang}",
+                    "codeparrot/github-code",
+                    languages=[lang],
                     split="train",
                     streaming=True
                 )
                 ds = ds.take(examples_per_lang)
 
                 for example in tqdm(ds, desc=f"Processing {lang}", total=examples_per_lang):
-                    code = example['content']
+                    code = example['code']
                     # Format as instruction-following
                     text = f"Instruction: Write {lang} code.\nOutput: {code}"
                     formatted.append(text)
@@ -56,11 +56,11 @@ def load_the_stack(num_tokens=7_000_000_000, avg_tokens=600):
                 print(f"Warning: Could not load {lang} - {e}")
                 continue
 
-        print(f"\n✓ Loaded {len(formatted):,} code examples from The Stack")
+        print(f"\nLoaded {len(formatted):,} code examples from GitHub Code")
         return formatted
 
     except Exception as e:
-        print(f"✗ Error loading The Stack: {e}")
+        print(f"Error loading GitHub Code: {e}")
         print("Falling back to Evol-CodeAlpaca only...")
         return load_evol_code_alpaca(num_tokens)
 
@@ -97,7 +97,7 @@ def load_evol_code_alpaca(num_tokens=2_000_000_000, avg_tokens=700):
         return []
 
 
-def load_all_code(stack_tokens=7_000_000_000, evol_tokens=2_000_000_000):
+def load_all_code(github_tokens=7_000_000_000, evol_tokens=2_000_000_000):
     """
     Load all code datasets
 
@@ -106,9 +106,9 @@ def load_all_code(stack_tokens=7_000_000_000, evol_tokens=2_000_000_000):
     """
     all_code = []
 
-    # Try The Stack first
-    stack_data = load_the_stack(stack_tokens)
-    all_code.extend(stack_data)
+    # Load GitHub Code
+    github_data = load_github_code(github_tokens)
+    all_code.extend(github_data)
 
     # Add Evol-CodeAlpaca
     evol_data = load_evol_code_alpaca(evol_tokens)

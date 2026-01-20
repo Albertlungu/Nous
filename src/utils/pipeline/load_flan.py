@@ -1,5 +1,5 @@
 """
-FLAN v2 Dataset Loader
+FLAN Dataset Loader (Open-Orca version)
 Target: 8B tokens
 Diverse tasks with Chain-of-Thought reasoning
 """
@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 def load_flan(num_tokens=8_000_000_000, avg_tokens=800):
     """
-    Load FLAN v2 dataset
+    Load FLAN dataset (Open-Orca/FLAN - full 378M examples)
 
     Args:
         num_tokens: Target number of tokens to load
@@ -24,27 +24,27 @@ def load_flan(num_tokens=8_000_000_000, avg_tokens=800):
         List of formatted text strings
     """
     print("\n" + "="*60)
-    print("Loading FLAN v2 dataset...")
+    print("Loading FLAN dataset (Open-Orca)...")
     print(f"Target tokens: {num_tokens:,}")
     print("="*60)
 
     num_examples = int(num_tokens / avg_tokens)
 
     try:
-        ds = load_dataset("conceptofmind/flan2021_submix_original", split="train", streaming=True)
+        ds = load_dataset("Open-Orca/FLAN", split="train", streaming=True)
         ds = ds.shuffle(seed=42).take(num_examples)
 
         formatted = []
-        for example in tqdm(ds, desc="Processing FLAN v2", total=num_examples):
+        for example in tqdm(ds, desc="Processing FLAN", total=num_examples):
             # FLAN format: {inputs, targets}
             text = f"Instruction: {example['inputs']}\nOutput: {example['targets']}"
             formatted.append(text)
 
-        print(f"✓ Loaded {len(formatted):,} examples from FLAN v2")
+        print(f"Loaded {len(formatted):,} examples from FLAN")
         return formatted
 
     except Exception as e:
-        print(f"✗ Error loading FLAN v2: {e}")
+        print(f"Error loading FLAN: {e}")
         return []
 
 

@@ -61,7 +61,7 @@ def train():
     #     tokenizer._ensure_vocab()
 
     # Load the new tokenized dataset
-    with open("training_data/alpaca_tokenized.pkl", "rb") as f:
+    with open("training_data/nous_corpus.pkl", "rb") as f:
         token_ids = pickle.load(f)
 
     # with open("training_data/alpaca_tokenized.pkl", "rb") as f:
@@ -77,7 +77,7 @@ def train():
         lr=1.2e-3,
         num_blocks=16,
         num_heads=16,
-        embedding_dim=2048,
+        embedding_dim=1024,
         max_seq_length=256,
         use_moe=True,
         num_experts=16,
@@ -100,9 +100,9 @@ def train():
 
     # Train with automatic checkpointing
     trainer.train(
-        epochs=10,
-        batch_size=16,
-        checkpoint_path=get_models_path("alpaca284.pkl"),
+        epochs=150,
+        batch_size=32,
+        checkpoint_path="artifacts/models/nous.pkl",
         save_every=1,
         prompt="Instruction: List three best practices for starting a conversation.\nInput: \nOutput:",
     )
@@ -114,7 +114,7 @@ def train():
 
     # Save lightweight model-only checkpoint (no optimizer state)
     print("\nCreating lightweight checkpoint for inference...")
-    trainer.save_model_only(get_models_path("alpaca200_model_only.pkl"))
+    # trainer.save_model_only(get_models_path("alpaca200_model_only.pkl"))
     print("Lightweight checkpoint saved!")
 
     # Test generation

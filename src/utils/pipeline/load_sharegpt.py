@@ -1,5 +1,5 @@
 """
-ShareGPT Dataset Loader
+ShareGPT Dataset Loader (RyokoAI version)
 Target: 4B tokens
 Real ChatGPT conversations (high quality multi-turn)
 """
@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 def load_sharegpt(num_tokens=4_000_000_000, avg_tokens=1500):
     """
-    Load ShareGPT dataset (real ChatGPT conversations)
+    Load ShareGPT dataset (RyokoAI/ShareGPT52K - 90k conversations)
 
     Args:
         num_tokens: Target number of tokens to load
@@ -24,14 +24,14 @@ def load_sharegpt(num_tokens=4_000_000_000, avg_tokens=1500):
         List of formatted conversation strings
     """
     print("\n" + "="*60)
-    print("Loading ShareGPT (real ChatGPT conversations)...")
+    print("Loading ShareGPT (RyokoAI/ShareGPT52K)...")
     print(f"Target tokens: {num_tokens:,}")
     print("="*60)
 
     num_examples = int(num_tokens / avg_tokens)
 
     try:
-        ds = load_dataset("anon8231489123/ShareGPT_Vicuna_unfiltered", split="train", streaming=True)
+        ds = load_dataset("RyokoAI/ShareGPT52K", split="train", streaming=True)
         ds = ds.shuffle(seed=42).take(num_examples)
 
         formatted = []
@@ -47,11 +47,11 @@ def load_sharegpt(num_tokens=4_000_000_000, avg_tokens=1500):
 
                 formatted.append(formatted_conv.strip())
 
-        print(f"✓ Loaded {len(formatted):,} conversations from ShareGPT")
+        print(f"Loaded {len(formatted):,} conversations from ShareGPT")
         return formatted
 
     except Exception as e:
-        print(f"✗ Error loading ShareGPT: {e}")
+        print(f"Error loading ShareGPT: {e}")
         return []
 
 
