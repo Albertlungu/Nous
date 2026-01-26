@@ -83,7 +83,10 @@ class ModelInterface:
                 num_heads=config.get('num_heads', 8),
                 embedding_dim=config.get('embedding_dim', 512),
                 max_seq_length=256,
-                dropout=0.0
+                dropout=0.0,
+                use_moe=config.get('use_moe', False),
+                num_experts=config.get('num_experts', 8),
+                experts_per_token=config.get('experts_per_token', 2)
             )
 
             self.trainer.load_checkpoint(model_path)
