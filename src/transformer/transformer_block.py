@@ -434,7 +434,7 @@ class TransformerBlock:
                 'B1': self.ffn.B1,
                 'W2': self.ffn.W2,
                 'B2': self.ffn.B2
-            },
+            }
 
         return params
 

@@ -14,6 +14,7 @@ Provides:
 
 import os
 import sys
+from functools import partial
 
 import jax # pylint: disable=no-member
 import jax.numpy as jnp # pylint: disable=no-member
@@ -98,7 +99,7 @@ class FeedForward():
         return jnp.maximum(0, x)
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, static_argnames=('dropout', 'training'))
     def fwd(
         params:dict,
         x:jnp.ndarray,
