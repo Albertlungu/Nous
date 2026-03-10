@@ -8,7 +8,7 @@
     "build": "electron-builder",
     "build:backend:mac": "bash scripts/build_backend_macos.sh",
     "build:mac": "npm run build:backend:mac && electron-builder --mac",
-    "build:mac:release": "npm run build:backend:mac && electron-builder --mac --publish never",
+    "build:mac:release": "bash scripts/check_macos_release_signing.sh && npm run build:backend:mac && electron-builder --mac --publish never",
     "build:win": "electron-builder --win",
     "build:all": "electron-builder --mac --win",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -76,6 +76,7 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "hardenedRuntime": true,
+      "identity": "Developer ID Application",
       "target": [
         {
           "target": "dmg",

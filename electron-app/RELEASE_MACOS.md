@@ -8,6 +8,14 @@ This project is configured to notarize automatically during `electron-builder` a
 2. A valid `Developer ID Application` certificate installed in Keychain on this Mac.
 3. App-specific password for your Apple ID.
 
+Verify certificate presence before release build:
+
+```bash
+security find-identity -v -p codesigning
+```
+
+If you only see `Apple Development` and not `Developer ID Application`, release signing will fail.
+
 ## One-time credential setup (shell env)
 
 Set these in your shell before building:
@@ -30,6 +38,8 @@ export CSC_NAME="Developer ID Application: Your Name (TEAMID)"
 cd electron-app
 npm run build:mac:release
 ```
+
+The command now runs a precheck and fails fast with a clear message when release-signing prerequisites are missing.
 
 This performs:
 1. Build a standalone backend binary (`scripts/build_backend_macos.sh`)
