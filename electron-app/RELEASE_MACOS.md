@@ -41,6 +41,20 @@ npm run build:mac:release
 
 The command now runs a precheck and fails fast with a clear message when release-signing prerequisites are missing.
 
+## If you are not in Apple Developer Program
+
+You can still generate a distributable macOS build, but it will be unsigned and not notarized.
+
+```bash
+cd electron-app
+npm run build:mac:unsigned
+```
+
+Important behavior of unsigned builds:
+1. Gatekeeper warnings are expected on first launch.
+2. Users may need to right-click the app and choose `Open`, or remove quarantine manually.
+3. This is less trustable than signed/notarized releases and is best for testers.
+
 This performs:
 1. Build a standalone backend binary (`scripts/build_backend_macos.sh`)
 2. Developer ID signing (electron-builder)
