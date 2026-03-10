@@ -114,20 +114,38 @@ function startPythonServer() {
 
     let pythonPath;
     let scriptPath;
+    let backendCommand;
+    let backendArgs = [];
     let dataPath;
     let logPath;
 
     if (isPackaged) {
-        // Production: use bundled Python from venv and Resources directory for data
+        // Production: prefer a bundled backend executable on macOS.
         const resourcesPath = process.resourcesPath;
         const userDataPath = app.getPath('userData');
-        if (process.platform === 'win32') {
-            pythonPath = path.join(resourcesPath, 'venv', 'Scripts', 'python.exe');
+        if (process.platform === 'darwin') {
+            backendCommand = path.join(resourcesPath, 'backend', 'nous-api-server');
+            scriptPath = path.join(resourcesPath, 'api', 'server.py');
+
+            if (fs.existsSync(backendCommand)) {
+                try {
+                    fs.chmodSync(backendCommand, 0o755);
+                } catch (_) {
+                    // If chmod fails, spawn will report the error.
+                }
+            } else {
+                // Last resort fallback for local testing if backend binary is missing.
+                backendCommand = 'python3';
+                backendArgs = [scriptPath];
+            }
+        } else if (process.platform === 'win32') {
+            pythonPath = 'python';
+            scriptPath = path.join(resourcesPath, 'api', 'server.py');
         } else {
-            pythonPath = path.join(resourcesPath, 'venv', 'bin', 'python');
+            pythonPath = 'python3';
+            scriptPath = path.join(resourcesPath, 'api', 'server.py');
         }
         dataPath = userDataPath;
-        scriptPath = path.join(resourcesPath, 'api', 'server.py');
         logPath = path.join(userDataPath, 'nous-debug.log');
     } else {
         // Development: use system Python and project directories
@@ -150,8 +168,13 @@ function startPythonServer() {
         logStream.write(logMsg);
     };
 
-    log(`Python path: ${pythonPath}`);
-    log(`Script path: ${scriptPath}`);
+    if (backendCommand) {
+        log(`Backend command: ${backendCommand}`);
+        log(`Backend args: ${backendArgs.join(' ') || '(none)'}`);
+    } else {
+        log(`Python path: ${pythonPath}`);
+        log(`Script path: ${scriptPath}`);
+    }
     log(`Data path: ${dataPath}`);
     log(`Is packaged: ${isPackaged}`);
     log(`Log path: ${logPath}`);
@@ -171,7 +194,10 @@ function startPythonServer() {
             apiPort = await findAvailablePort(5000, 200);
             log(`Selected API port: ${apiPort}`);
 
-            pythonProcess = spawn(pythonPath, [scriptPath], {
+            const command = backendCommand || pythonPath;
+            const args = backendCommand ? backendArgs : [scriptPath];
+
+            pythonProcess = spawn(command, args, {
                 env: {
                     ...process.env,
                     NOUS_DATA_PATH: dataPath,
@@ -197,7 +223,7 @@ function startPythonServer() {
             });
 
             pythonProcess.on('error', (err) => {
-                log(`Failed to start Python: ${err.message}`);
+                log(`Failed to start backend: ${err.message}`);
             });
 
             const ready = await waitForBackend(apiPort, 20000, 250);

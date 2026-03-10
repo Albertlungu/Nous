@@ -6,8 +6,9 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "build:mac": "electron-builder --mac",
-    "build:mac:release": "electron-builder --mac --publish never",
+    "build:backend:mac": "bash scripts/build_backend_macos.sh",
+    "build:mac": "npm run build:backend:mac && electron-builder --mac",
+    "build:mac:release": "npm run build:backend:mac && electron-builder --mac --publish never",
     "build:win": "electron-builder --win",
     "build:all": "electron-builder --mac --win",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -52,8 +53,8 @@
         ]
       },
       {
-        "from": "../venv",
-        "to": "venv"
+        "from": "backend-dist/nous-api-server",
+        "to": "backend/nous-api-server"
       },
       {
         "from": "../artifacts",
