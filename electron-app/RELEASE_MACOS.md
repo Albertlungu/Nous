@@ -32,9 +32,12 @@ npm run build:mac:release
 ```
 
 This performs:
-1. Developer ID signing (electron-builder)
-2. Notarization (`scripts/notarize.js` via `@electron/notarize`)
-3. DMG creation in `electron-app/dist`
+1. Build a standalone backend binary (`scripts/build_backend_macos.sh`)
+2. Developer ID signing (electron-builder)
+3. Notarization (`scripts/notarize.js` via `@electron/notarize`)
+4. DMG creation in `electron-app/dist`
+
+The release no longer relies on shipping a machine-specific Python `venv` inside the app bundle.
 
 ## Validate locally
 
