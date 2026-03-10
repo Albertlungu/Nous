@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Check if server is healthy and model is loaded
         try {
-            const healthCheck = await fetch('http:127.0.0.1:5000/api/health');
+            const healthCheck = await fetch('/api/health');
             const health = await healthCheck.json();
             if (!health.model_loaded) {
                 showError('Please load a model first from the Model Config page');
@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const loadingId = showLoading();
 
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/chat/generate', {
+            const response = await fetch('/api/chat/generate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

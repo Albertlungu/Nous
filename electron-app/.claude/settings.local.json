@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/albertlungu/Documents/GitHub/Nous/src/transformer/**)",
+      "Read(//Users/albertlungu/Documents/GitHub/Nous/src/training/**)",
+      "Read(//Users/albertlungu/Documents/GitHub/Nous/api/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

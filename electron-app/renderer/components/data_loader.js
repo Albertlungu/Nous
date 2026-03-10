@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadAndDisplayDatasets() {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/datasets/list');
+            const response = await fetch('/api/datasets/list');
 
             if (!response.ok) {
                 throw new Error('Failed to load datasets');
@@ -391,7 +391,7 @@ Output: {output}
 
                 progressText.textContent = 'Importing files...';
 
-                const response = await fetch('http://127.0.0.1:5000/api/datasets/import-files', {
+                const response = await fetch('/api/datasets/import-files', {
                     method: 'POST',
                     body: formData
                 });
@@ -416,7 +416,7 @@ Output: {output}
 
             progressText.textContent = 'Creating dataset...';
 
-            const response = await fetch('http://127.0.0.1:5000/api/datasets/create', {
+            const response = await fetch('/api/datasets/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestData)
@@ -528,7 +528,7 @@ Output: {output}
 
     async function loadDatasetsForCombine(modal) {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/datasets/list');
+            const response = await fetch('/api/datasets/list');
             const data = await response.json();
 
             const listDiv = modal.querySelector('#combine-dataset-list');
@@ -586,7 +586,7 @@ Output: {output}
         }
 
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/datasets/combine', {
+            const response = await fetch('/api/datasets/combine', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -785,7 +785,7 @@ Output: {output}
 
             progressText.textContent = 'Tokenizing dataset... This may take a while.';
 
-            const response = await fetch('http://127.0.0.1:5000/api/datasets/tokenize', {
+            const response = await fetch('/api/datasets/tokenize', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestData)
@@ -815,7 +815,7 @@ Output: {output}
 
     async function previewDataset(datasetPath) {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/datasets/preview', {
+            const response = await fetch('/api/datasets/preview', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ dataset_path: datasetPath, num_examples: 3 })
@@ -950,7 +950,7 @@ Output: {output}
 
     async function loadDatasetsForRemoval(modal) {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/datasets/list');
+            const response = await fetch('/api/datasets/list');
             const data = await response.json();
 
             const listDiv = modal.querySelector('#remove-dataset-list');
@@ -986,7 +986,7 @@ Output: {output}
         }
 
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/datasets/remove', {
+            const response = await fetch('/api/datasets/remove', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ dataset_path: selected.value })

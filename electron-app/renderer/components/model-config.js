@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function listAndSelectModel() {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/models/list');
+            const response = await fetch('/api/models/list');
             const data = await response.json();
 
             if (!data.models || data.models.length === 0) {
@@ -106,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
-            const response = await fetch('http://127.0.0.1:5000/api/models/load', {
+            const response = await fetch('/api/models/load', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -142,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function listModels() {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/models/list');
+            const response = await fetch('/api/models/list');
             const data = await response.json();
 
             if (!data.models || data.models.length === 0) {
@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function unloadModel() {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/models/unload', {
+            const response = await fetch('/api/models/unload', {
                 method: 'POST'
             });
 
@@ -198,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function updateModelInfo() {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/models/info');
+            const response = await fetch('/api/models/info');
 
             if (!response.ok) {
                 modelInfo.innerHTML = '<p style="color: var(--text-tertiary);">No model loaded</p>';

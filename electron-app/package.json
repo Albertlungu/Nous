@@ -7,6 +7,7 @@
     "start": "electron .",
     "build": "electron-builder",
     "build:mac": "electron-builder --mac",
+    "build:mac:release": "electron-builder --mac --publish never",
     "build:win": "electron-builder --win",
     "build:all": "electron-builder --mac --win",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -16,6 +17,7 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@electron/notarize": "^2.5.0",
     "electron": "^39.2.6",
     "electron-builder": "^26.0.12",
     "electron-reloader": "^1.2.3"
@@ -26,6 +28,7 @@
   "build": {
     "appId": "com.nous.app",
     "productName": "Nous",
+    "afterSign": "scripts/notarize.js",
     "directories": {
       "output": "dist"
     },
@@ -37,12 +40,16 @@
       {
         "from": "../api",
         "to": "api",
-        "filter": ["**/*.py"]
+        "filter": [
+          "**/*.py"
+        ]
       },
       {
         "from": "../src",
         "to": "src",
-        "filter": ["**/*.py"]
+        "filter": [
+          "**/*.py"
+        ]
       },
       {
         "from": "../venv",
@@ -50,7 +57,11 @@
       },
       {
         "from": "../artifacts",
-        "to": "artifacts"
+        "to": "artifacts",
+        "filter": [
+          "**/*",
+          "!models/model-fixed.pkl"
+        ]
       },
       {
         "from": "../training_data",
@@ -63,13 +74,15 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
       "target": [
         {
           "target": "dmg",
-          "arch": ["arm64"]
+          "arch": [
+            "arm64"
+          ]
         }
       ],
-      "identity": "-",
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist"
     },
@@ -83,7 +96,7 @@
           "x": 410,
           "y": 220,
           "type": "link",
-          "path": "~/Applications"
+          "path": "/Applications"
         }
       ]
     },
@@ -91,7 +104,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     }
