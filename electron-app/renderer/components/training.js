@@ -220,7 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const config = getConfigFromForm();
 
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/training/start', {
+            const response = await fetch('/api/training/start', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -245,7 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function pauseTraining() {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/training/pause', {
+            const response = await fetch('/api/training/pause', {
                 method: 'POST'
             });
 
@@ -265,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function resumeTraining() {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/training/resume', {
+            const response = await fetch('/api/training/resume', {
                 method: 'POST'
             });
 
@@ -286,7 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function stopTraining() {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/training/stop', {
+            const response = await fetch('/api/training/stop', {
                 method: 'POST'
             });
 
@@ -433,7 +433,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         statusInterval = setInterval(async () => {
             try {
-                const response = await fetch('http://127.0.0.1:5000/api/training/status');
+                const response = await fetch('/api/training/status');
                 const status = await response.json();
 
                 updateStatusDisplay(status);
@@ -531,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadDatasets() {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/datasets/list');
+            const response = await fetch('/api/datasets/list');
 
             if (!response.ok) {
                 console.warn('Could not load datasets');
@@ -569,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/tokenizers/set-tiktoken', {
+            const response = await fetch('/api/tokenizers/set-tiktoken', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tokenizer_name: tokenizerName })
@@ -598,7 +598,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/tokenizers/load-bpe', {
+            const response = await fetch('/api/tokenizers/load-bpe', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tokenizer_path: file.path })
@@ -645,7 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // Start BPE training (non-blocking)
-            const response = await fetch('http://127.0.0.1:5000/api/tokenizers/train-bpe', {
+            const response = await fetch('/api/tokenizers/train-bpe', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -664,7 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Poll for progress
             const progressInterval = setInterval(async () => {
                 try {
-                    const statusResponse = await fetch('http://127.0.0.1:5000/api/tokenizers/bpe-progress');
+                    const statusResponse = await fetch('/api/tokenizers/bpe-progress');
                     const status = await statusResponse.json();
 
                     const progressBar = document.getElementById('bpe-progress-bar');

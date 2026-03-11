@@ -7,10 +7,82 @@ try {
 
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const net = require('net');
+const http = require('http');
 const { spawn } = require('child_process');
 
 let mainWindow;
 let pythonProcess;
+let apiPort = 5000;
+
+function isPortAvailable(port) {
+    return new Promise((resolve) => {
+        const server = net.createServer();
+
+        server.once('error', () => resolve(false));
+        server.once('listening', () => {
+            server.close(() => resolve(true));
+        });
+
+        server.listen(port, '127.0.0.1');
+    });
+}
+
+async function findAvailablePort(startPort = 5000, maxAttempts = 200) {
+    for (let offset = 0; offset < maxAttempts; offset += 1) {
+        const candidate = startPort + offset;
+        if (await isPortAvailable(candidate)) {
+            return candidate;
+        }
+    }
+
+    throw new Error(`No available port found from ${startPort} to ${startPort + maxAttempts - 1}`);
+}
+
+function waitForBackend(port, timeoutMs = 20000, intervalMs = 250) {
+    return new Promise((resolve) => {
+        const start = Date.now();
+
+        const tryHealth = () => {
+            const req = http.get(
+                {
+                    hostname: '127.0.0.1',
+                    port,
+                    path: '/api/health',
+                    timeout: 1500
+                },
+                (res) => {
+                    if (res.statusCode === 200) {
+                        res.resume();
+                        resolve(true);
+                        return;
+                    }
+
+                    res.resume();
+                    if (Date.now() - start >= timeoutMs) {
+                        resolve(false);
+                    } else {
+                        setTimeout(tryHealth, intervalMs);
+                    }
+                }
+            );
+
+            req.on('error', () => {
+                if (Date.now() - start >= timeoutMs) {
+                    resolve(false);
+                } else {
+                    setTimeout(tryHealth, intervalMs);
+                }
+            });
+
+            req.on('timeout', () => {
+                req.destroy();
+            });
+        };
+
+        tryHealth();
+    });
+}
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -19,15 +91,14 @@ function createWindow() {
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
-            nodeIntegration: false
+            nodeIntegration: false,
+            additionalArguments: [`--nous-api-port=${apiPort}`]
         },
         backgroundColor: '#1a1a1a',
         titleBarStyle: 'hiddenInset'
     });
 
     mainWindow.loadFile('renderer/index.html');
-
-    mainWindow.webContents.openDevTools();
 
     mainWindow.on('closed', () => {
         mainWindow = null;
@@ -36,6 +107,7 @@ function createWindow() {
 
 function startPythonServer() {
     const fs = require('fs');
+    const fsPromises = fs.promises;
 
     // Determine if running in production (packaged) or development
     const isPackaged = app.isPackaged;
@@ -48,15 +120,15 @@ function startPythonServer() {
     if (isPackaged) {
         // Production: use bundled Python from venv and Resources directory for data
         const resourcesPath = process.resourcesPath;
+        const userDataPath = app.getPath('userData');
         if (process.platform === 'win32') {
             pythonPath = path.join(resourcesPath, 'venv', 'Scripts', 'python.exe');
-            dataPath = resourcesPath;
         } else {
             pythonPath = path.join(resourcesPath, 'venv', 'bin', 'python');
-            dataPath = resourcesPath;
         }
+        dataPath = userDataPath;
         scriptPath = path.join(resourcesPath, 'api', 'server.py');
-        logPath = path.join(dataPath, 'nous-debug.log');
+        logPath = path.join(userDataPath, 'nous-debug.log');
     } else {
         // Development: use system Python and project directories
         pythonPath = process.platform === 'win32' ? 'python' : 'python3';
@@ -84,45 +156,86 @@ function startPythonServer() {
     log(`Is packaged: ${isPackaged}`);
     log(`Log path: ${logPath}`);
 
-    try {
-        pythonProcess = spawn(pythonPath, [scriptPath], {
-            env: {
-                ...process.env,
-                NOUS_DATA_PATH: dataPath
-            }
-        });
-
-        if (!pythonProcess) {
-            log(`Failed to spawn python process`);
+    const copyDirIfMissing = async (sourceDir, targetDir) => {
+        if (!fs.existsSync(sourceDir) || fs.existsSync(targetDir)) {
             return;
         }
 
-        pythonProcess.stdout.on('data', (data) => {
-            log(`Python stdout: ${data}`);
-        });
+        await fsPromises.mkdir(path.dirname(targetDir), { recursive: true });
+        await fsPromises.cp(sourceDir, targetDir, { recursive: true });
+        log(`Seeded data directory from resources: ${sourceDir} -> ${targetDir}`);
+    };
 
-        pythonProcess.stderr.on('data', (data) => {
-            log(`Python stderr: ${data}`);
-        });
+    const launchPython = async () => {
+        try {
+            apiPort = await findAvailablePort(5000, 200);
+            log(`Selected API port: ${apiPort}`);
 
-        pythonProcess.on('close', (code) => {
-            log(`Python process exited with code: ${code}`);
-        });
+            pythonProcess = spawn(pythonPath, [scriptPath], {
+                env: {
+                    ...process.env,
+                    NOUS_DATA_PATH: dataPath,
+                    NOUS_API_PORT: String(apiPort)
+                }
+            });
 
-        pythonProcess.on('error', (err) => {
-            log(`Failed to start Python: ${err.message}`);
-        });
-    } catch (err) {
-        log(`Error spawning Python: ${err.message}`);
+            if (!pythonProcess) {
+                log(`Failed to spawn python process`);
+                return;
+            }
+
+            pythonProcess.stdout.on('data', (data) => {
+                log(`Python stdout: ${data}`);
+            });
+
+            pythonProcess.stderr.on('data', (data) => {
+                log(`Python stderr: ${data}`);
+            });
+
+            pythonProcess.on('close', (code) => {
+                log(`Python process exited with code: ${code}`);
+            });
+
+            pythonProcess.on('error', (err) => {
+                log(`Failed to start Python: ${err.message}`);
+            });
+
+            const ready = await waitForBackend(apiPort, 20000, 250);
+            if (!ready) {
+                log(`Backend health check timed out on port ${apiPort}`);
+            } else {
+                log(`Backend ready on port ${apiPort}`);
+            }
+
+            if (!mainWindow) {
+                createWindow();
+            }
+        } catch (err) {
+            log(`Error spawning Python: ${err.message}`);
+            if (!mainWindow) {
+                createWindow();
+            }
+        }
+    };
+
+    if (isPackaged) {
+        const resourcesPath = process.resourcesPath;
+        copyDirIfMissing(path.join(resourcesPath, 'artifacts'), path.join(dataPath, 'artifacts'))
+            .then(() => copyDirIfMissing(path.join(resourcesPath, 'training_data'), path.join(dataPath, 'training_data')))
+            .then(launchPython)
+            .catch((err) => {
+                log(`Failed to seed user data: ${err.message}`);
+                launchPython();
+            });
+    } else {
+        launchPython();
     }
 }
 
 app.whenReady().then(() => {
     startPythonServer();
 
-    setTimeout(() => {
-        createWindow();
-    }, 2000);
+    ipcMain.handle('nous:get-api-base-url', async () => `http://127.0.0.1:${apiPort}`);
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -145,4 +258,6 @@ app.on('quit', () => {
     if (pythonProcess) {
         pythonProcess.kill();
     }
+
+    ipcMain.removeHandler('nous:get-api-base-url');
 });

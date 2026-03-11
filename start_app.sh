@@ -1,6 +1,6 @@
 echo "Starting PyGPT..."
 
-if [ ! -d "venv"]; then
+if [ ! -d "venv" ]; then
     echo "Error: virtual environment not found. Please run ./metal_setup.sh first."
     exit 1
 fi
