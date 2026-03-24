@@ -28,7 +28,11 @@ My point is that this app, Nous, allows you to do exactly that: configure litera
 
 **Example outputs for the current model (details below):**
 ```
+Prompt: Explain what NLP is
+Output: NLP is a type of artificial intelligence that enables computer systems to learn from data. It enables steps such as analyzing, understanding and comprehend, by describes the idea behind it and identify a specific topic about computers. It can also be used for natural language processing, machine translation and text summarization, such as voice assistants orPT-rich dialogue tools. Additionally, Machine learning algorithms can optimize processes in real-time, and provide insights into customer behavior.
 
+Prompt: Can you please explain to me what photosynthesis is?
+Output: Photosynthesis is the process by which plants, algae, and some bacteria convert sunlight, water, and carbon dioxide into energy in a series of replication. This process has various applications and it serves as a primary energy source of energy for plants and other organisms; it also converts carbon dioxide into glucose through a process known as oxygen.
 ```
 
 ## Quickstart
