@@ -31,6 +31,10 @@ mkdir -p "${DIST_DIR}" "${BUILD_DIR}"
   --workpath "${BUILD_DIR}/work" \
   --specpath "${BUILD_DIR}" \
   --paths "${REPO_ROOT}" \
+  --additional-hooks-dir "${REPO_ROOT}/electron-app/pyinstaller-hooks" \
+  --hidden-import tiktoken_ext \
+  --hidden-import tiktoken_ext.openai_public \
+  --collect-all tiktoken_ext \
   "${REPO_ROOT}/api/server.py"
 
 chmod +x "${DIST_DIR}/nous-api-server"
