@@ -38,6 +38,10 @@ Output: Photosynthesis is the process by which plants, algae, and some bacteria 
 ## Quickstart
 Download the Nous app (.dmg file) from the releases page and follow the onscreen instructions. Then, you may explore the app as you wish.
 
+**Demo Video:**
+
+https://github.com/Albertlungu/Nous/raw/refs/heads/JAX/concepts/assets/nous-demo.mov
+
 A few notes:
 1. The chat tab is for chatting with the current model. You can change generation settings in the top right corner by clicking on the gear icon.
 2. Before sending a message, you must load a model by going to the models page.
