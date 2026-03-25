@@ -1,7 +1,8 @@
 """
-Corpus Tokenizer
-Tokenizes nous_corpus.txt using TikToken
-Saves to training_data/nous_corpus.pkl
+Backwards Corpus Tokenizer
+Tokenizes nous_corpus.txt FROM END TO START
+Saves tokenized data to .pkl and compressed archive to .txt.zst (ZSTD compression)
+Truncates processed portions to free disk space during processing
 """
 
 import os
@@ -9,121 +10,266 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 import pickle
-from api.paths import get_training_data_path
+import json
+import zstandard as zstd
 from src.tokenizer.tiktoken_tokenizer import TikToken
 
 
-def tokenize_corpus(input_path, output_path, target_tokens=46_000_000_000):
+def read_chunk_from_end(file_path, current_size, chunk_examples=10000):
     """
-    Tokenize the text corpus and save as pickle file (STREAMING VERSION)
+    Read a chunk of examples from the end of the file.
 
-    Processes the corpus in a streaming fashion:
-    - Reads line by line (not all at once)
-    - Tokenizes one example at a time
-    - Writes each tokenized example to disk immediately
-    - Never keeps the full token list in memory
+    Args:
+        file_path: Path to text file
+        current_size: Current file size in bytes
+        chunk_examples: Target number of examples to read
+
+    Returns:
+        tuple: (examples_list, new_file_size, bytes_read)
+    """
+    # Read from end in large blocks to find example boundaries
+    block_size = 1024 * 1024  # 1MB blocks
+    examples = []
+    bytes_read = 0
+
+    with open(file_path, 'rb') as f:
+        # Start from end
+        position = current_size
+        buffer = b''
+
+        while len(examples) < chunk_examples and position > 0:
+            # Move back one block
+            read_size = min(block_size, position)
+            position -= read_size
+            f.seek(position)
+            block = f.read(read_size)
+
+            # Prepend to buffer
+            buffer = block + buffer
+            bytes_read += read_size
+
+            # Try to decode and split into examples
+            try:
+                text = buffer.decode('utf-8')
+                # Split by double newline (example separator)
+                parts = text.split('\n\n')
+
+                # Last part might be incomplete, save it
+                if position == 0:
+                    # We're at the beginning, use all parts
+                    new_examples = [p.strip() for p in parts if p.strip()]
+                else:
+                    # Keep last part in buffer for next iteration
+                    new_examples = [p.strip() for p in parts[1:] if p.strip()]
+                    buffer = parts[0].encode('utf-8')
+
+                # Add new examples (in reverse since we're reading backwards)
+                examples = new_examples + examples
+
+            except UnicodeDecodeError:
+                # Buffer doesn't align with UTF-8, keep reading
+                continue
+
+            # Stop if we have enough examples
+            if len(examples) >= chunk_examples:
+                # Only use the examples we need
+                examples = examples[-chunk_examples:]
+                break
+
+    # Calculate actual bytes to truncate (align to example boundary)
+    # We need to find where the examples we're keeping actually end in the file
+    new_size = current_size - bytes_read
+
+    return examples, new_size, bytes_read
+
+
+def tokenize_corpus_backwards(input_path, output_path, archive_path, checkpoint_frequency=10000, chunk_size=10000):
+    """
+    Tokenize corpus BACKWARDS and save as pickle file (SPACE-SAVING VERSION)
+
+    Processes the corpus from END to START to enable file truncation:
+    - Reads chunks from end of file
+    - Tokenizes each chunk
+    - Appends tokenized data to .pkl file
+    - Appends compressed text to archive .txt.gz
+    - Truncates processed portion from input file (frees disk space!)
+    - Saves checkpoint every N examples for resume capability
+
+    Final result: Examples in reverse order (last to first), but doesn't matter for shuffled training.
 
     Args:
         input_path: Path to nous_corpus.txt
         output_path: Path to save nous_corpus.pkl
-        target_tokens: Maximum tokens to process (default 46B)
+        archive_path: Path to save compressed archive nous_corpus_archive.txt.gz
+        checkpoint_frequency: Save checkpoint every N examples (default 10000)
+        chunk_size: Number of examples per chunk (default 10000)
 
     Returns:
-        Dictionary with statistics (not the actual tokens)
+        Dictionary with statistics
     """
+    checkpoint_path = output_path.replace('.pkl', '_checkpoint.json')
+
     print("="*80)
-    print("TOKENIZING NOUS CORPUS (STREAMING MODE)")
+    print("TOKENIZING NOUS CORPUS BACKWARDS (SPACE-SAVING MODE)")
+    print("="*80)
+    print(f"Input: {input_path}")
+    print(f"Output (tokenized): {output_path}")
+    print(f"Archive (compressed): {archive_path}")
+    print(f"Checkpoint: {checkpoint_path}")
+    print(f"Checkpoint frequency: every {checkpoint_frequency:,} examples")
+    print(f"Chunk size: {chunk_size:,} examples")
+    print("="*80)
+    print("\nNOTE: Processing BACKWARDS (end to start)")
+    print("This allows us to truncate the file and free disk space as we go!")
     print("="*80)
 
     # Initialize tokenizer
-    print("\nLoading TikToken tokenizer...")
+    print("\nLoading TikToken tokenizer (r50k_base)...")
     tokenizer = TikToken()
     print(f"✓ Loaded tokenizer (vocab size: {tokenizer.vocab_size:,})")
 
     # Check input file exists
-    print(f"\nPreparing to stream from {input_path}...")
     if not os.path.exists(input_path):
-        print(f"✗ Error: File not found at {input_path}")
-        print("Please run combine_datasets.py first!")
+        print(f"✗ Error: Input file not found at {input_path}")
         return None
 
-    # Streaming tokenization
-    print(f"\n{'='*80}")
-    print("STREAMING TOKENIZATION...")
-    print(f"{'='*80}")
+    # Load checkpoint if exists
+    initial_size = os.path.getsize(input_path)
+    checkpoint = {
+        "current_file_size": initial_size,
+        "examples_processed": 0,
+        "tokens_processed": 0,
+        "original_file_size": initial_size
+    }
 
-    total_tokens = 0
-    total_examples = 0
+    pkl_mode = "wb"
+    archive_mode = "wb"
+
+    if os.path.exists(checkpoint_path):
+        with open(checkpoint_path, 'r') as f:
+            loaded_checkpoint = json.load(f)
+
+        # Backward compatibility: if old checkpoint format, use current file size
+        if 'current_file_size' not in loaded_checkpoint:
+            print("\n✓ Old checkpoint format detected, using current file size...")
+            loaded_checkpoint['current_file_size'] = os.path.getsize(input_path)
+            loaded_checkpoint['original_file_size'] = loaded_checkpoint.get('original_file_size', initial_size)
+
+        checkpoint.update(loaded_checkpoint)
+
+        print(f"\n✓ Resuming from checkpoint:")
+        print(f"  Examples processed: {checkpoint['examples_processed']:,}")
+        print(f"  Tokens processed: {checkpoint['tokens_processed']:,}")
+        print(f"  Current file size: {checkpoint['current_file_size']:,} bytes ({checkpoint['current_file_size']/(1024**3):.2f} GB)")
+        print(f"  Original file size: {checkpoint['original_file_size']:,} bytes ({checkpoint['original_file_size']/(1024**3):.2f} GB)")
+        print(f"  Progress: {(1 - checkpoint['current_file_size']/checkpoint['original_file_size'])*100:.1f}% complete")
+        pkl_mode = "ab"
+        archive_mode = "ab"
+    else:
+        print("\n✓ Starting fresh (no checkpoint found)")
+        print(f"  File size: {initial_size:,} bytes ({initial_size/(1024**3):.2f} GB)")
+
+    # Statistics
+    total_tokens = checkpoint["tokens_processed"]
+    total_examples = checkpoint["examples_processed"]
+    current_file_size = checkpoint["current_file_size"]
     skipped = 0
-    token_lengths = []  # For statistics (just lengths, not actual tokens)
     min_tokens = float('inf')
     max_tokens = 0
 
-    # Open output file for writing tokenized examples one by one
-    with open(output_path, "wb") as out_f:
-        with open(input_path, "r", encoding="utf-8") as in_f:
-            current_example_lines = []
+    print(f"\n{'='*80}")
+    print("STARTING BACKWARDS TOKENIZATION...")
+    print(f"{'='*80}\n")
 
-            for line in in_f:
-                # Remove trailing newline
-                line = line.rstrip('\n')
+    # Open output files
+    # Create ZSTD compressor (level 3 = good balance of speed vs compression)
+    cctx = zstd.ZstdCompressor(level=3)
 
-                # Empty line indicates end of example (examples separated by \n\n)
-                if line == '':
-                    if current_example_lines:
-                        # Join lines to reconstruct the example
-                        text = '\n'.join(current_example_lines).strip()
+    with open(output_path, pkl_mode) as pkl_f:
+        if archive_mode == "wb":
+            archive_f = open(archive_path, archive_mode)
+            archive_writer = cctx.stream_writer(archive_f)
+        else:  # append mode
+            archive_f = open(archive_path, archive_mode)
+            archive_writer = cctx.stream_writer(archive_f, closefd=False)
 
-                        if text:  # Only process non-empty examples
+        with archive_writer:
+
+            while current_file_size > 0:
+                # Read chunk from end
+                try:
+                    examples, new_file_size, bytes_read = read_chunk_from_end(
+                        input_path, current_file_size, chunk_size
+                    )
+
+                    if not examples:
+                        print("No more examples to process")
+                        break
+
+                    print(f"  Read {len(examples):,} examples ({bytes_read:,} bytes) from end")
+
+                    # Process each example in the chunk
+                    for text in examples:
+                        if text:
                             try:
-                                # Tokenize this example
+                                # Tokenize
                                 ids = tokenizer.encode(text)
                                 ids.append(tokenizer.eos_token_id)
 
-                                # Write immediately to disk (streaming write)
-                                pickle.dump(ids, out_f)
+                                # Save tokenized version
+                                pickle.dump(ids, pkl_f)
 
-                                # Update statistics (keep only counts, not tokens)
+                                # Save compressed text version
+                                archive_writer.write((text + "\n\n").encode('utf-8'))
+
+                                # Update statistics
                                 token_count = len(ids)
                                 total_tokens += token_count
                                 total_examples += 1
                                 min_tokens = min(min_tokens, token_count)
                                 max_tokens = max(max_tokens, token_count)
-                                token_lengths.append(token_count)
-
-                                # Progress update every 10k examples
-                                if total_examples % 10000 == 0:
-                                    print(f"  Processed {total_examples:,} examples | {total_tokens:,} tokens so far")
 
                             except Exception as e:
                                 skipped += 1
                                 if skipped <= 10:
                                     print(f"\nWarning: Skipped example due to error: {e}")
 
-                        # Clear the buffer - this is key for streaming!
-                        current_example_lines = []
-                else:
-                    # Accumulate lines for current example
-                    current_example_lines.append(line)
+                    # Truncate the file (FREE DISK SPACE!)
+                    with open(input_path, 'r+b') as f:
+                        f.truncate(new_file_size)
 
-            # Handle last example if file doesn't end with blank line
-            if current_example_lines:
-                text = '\n'.join(current_example_lines).strip()
-                if text:
-                    try:
-                        ids = tokenizer.encode(text)
-                        ids.append(tokenizer.eos_token_id)
-                        pickle.dump(ids, out_f)
+                    current_file_size = new_file_size
 
-                        token_count = len(ids)
-                        total_tokens += token_count
-                        total_examples += 1
-                        min_tokens = min(min_tokens, token_count)
-                        max_tokens = max(max_tokens, token_count)
-                        token_lengths.append(token_count)
+                    # Save checkpoint
+                    if total_examples % checkpoint_frequency < chunk_size:
+                        checkpoint["current_file_size"] = current_file_size
+                        checkpoint["examples_processed"] = total_examples
+                        checkpoint["tokens_processed"] = total_tokens
 
-                    except Exception as e:
-                        skipped += 1
+                        with open(checkpoint_path, 'w') as chk:
+                            json.dump(checkpoint, chk, indent=2)
+
+                        # Flush to disk
+                        pkl_f.flush()
+                        os.fsync(pkl_f.fileno())
+                        archive_writer.flush(zstd.FLUSH_FRAME)  # ZSTD flush
+
+                        remaining_gb = current_file_size / (1024**3)
+                        processed_gb = (checkpoint['original_file_size'] - current_file_size) / (1024**3)
+                        progress_pct = (processed_gb / (checkpoint['original_file_size']/(1024**3))) * 100
+
+                        print(f"  Checkpoint: {total_examples:,} examples | {total_tokens:,} tokens")
+                        print(f"             Remaining: {remaining_gb:.2f} GB | Processed: {processed_gb:.2f} GB | Progress: {progress_pct:.1f}%")
+
+                except Exception as e:
+                    print(f"\n✗ Error processing chunk: {e}")
+                    # Save checkpoint before failing
+                    checkpoint["current_file_size"] = current_file_size
+                    checkpoint["examples_processed"] = total_examples
+                    checkpoint["tokens_processed"] = total_tokens
+                    with open(checkpoint_path, 'w') as chk:
+                        json.dump(checkpoint, chk, indent=2)
+                    raise
 
     # Print statistics
     print(f"\n{'='*80}")
@@ -135,121 +281,81 @@ def tokenize_corpus(input_path, output_path, target_tokens=46_000_000_000):
     print(f"Skipped examples: {skipped:,}")
     print(f"{'='*80}")
 
-    # Calculate token distribution
-    if token_lengths:
+    if min_tokens != float('inf'):
         print(f"\nToken Distribution:")
         print(f"  Min tokens: {min_tokens:,}")
         print(f"  Max tokens: {max_tokens:,}")
-        print(f"  Median tokens: {sorted(token_lengths)[len(token_lengths)//2]:,}")
 
-    # Print file size
+    # Print file sizes
+    pkl_size_gb = os.path.getsize(output_path) / (1024 ** 3)
+    archive_size_gb = os.path.getsize(archive_path) / (1024 ** 3)
+    remaining_txt_size = os.path.getsize(input_path) / (1024 ** 3)
+
     print(f"\n{'='*80}")
-    print(f"Saved tokenized data to {output_path}")
+    print("OUTPUT FILES")
     print(f"{'='*80}")
-    file_size_bytes = os.path.getsize(output_path)
-    file_size_gb = file_size_bytes / (1024 ** 3)
-    print(f"✓ Saved successfully!")
-    print(f"  File size: {file_size_gb:.2f} GB")
+    print(f"Tokenized data: {output_path}")
+    print(f"  Size: {pkl_size_gb:.2f} GB")
+    print(f"\nCompressed archive: {archive_path}")
+    print(f"  Size: {archive_size_gb:.2f} GB")
+    print(f"\nOriginal text file: {input_path}")
+    print(f"  Remaining size: {remaining_txt_size:.2f} GB (should be ~0 GB)")
+    print(f"{'='*80}")
 
-    # Return statistics instead of the actual token data
+    # Clean up checkpoint file
+    if os.path.exists(checkpoint_path):
+        os.remove(checkpoint_path)
+        print(f"\n✓ Checkpoint file removed (tokenization completed successfully)")
+
+    # Optionally delete the empty text file
+    if remaining_txt_size < 0.01:  # Less than 10MB
+        print(f"\n✓ Original text file is now empty")
+        print(f"  You can delete it with: rm \"{input_path}\"")
+
     return {
         'total_examples': total_examples,
         'total_tokens': total_tokens,
         'skipped': skipped,
         'min_tokens': min_tokens if min_tokens != float('inf') else 0,
-        'max_tokens': max_tokens
+        'max_tokens': max_tokens,
+        'pkl_size_gb': pkl_size_gb,
+        'archive_size_gb': archive_size_gb
     }
-
-
-def verify_tokenized_data(pkl_path):
-    """
-    Load and verify the tokenized data (STREAMING VERSION)
-
-    The pickle file contains multiple pickled objects (one per example),
-    so we read them one at a time without loading everything into memory.
-
-    Args:
-        pkl_path: Path to nous_corpus.pkl
-    """
-    print(f"\n{'='*80}")
-    print("VERIFYING TOKENIZED DATA (STREAMING MODE)")
-    print(f"{'='*80}")
-
-    print(f"Streaming verification from {pkl_path}...")
-
-    total_examples = 0
-    total_tokens = 0
-    first_example_ids = None
-
-    # Stream through the pickle file without loading all data
-    with open(pkl_path, "rb") as f:
-        while True:
-            try:
-                # Load one example at a time
-                ids = pickle.load(f)
-
-                # Capture first example for display
-                if first_example_ids is None:
-                    first_example_ids = ids
-
-                # Update stats
-                total_examples += 1
-                total_tokens += len(ids)
-
-            except EOFError:
-                # End of file reached
-                break
-
-    print(f"✓ Verified successfully!")
-    print(f"\nDataset Statistics:")
-    print(f"  Total examples: {total_examples:,}")
-    print(f"  Total tokens: {total_tokens:,}")
-    print(f"  Average tokens/example: {total_tokens / total_examples:.1f}" if total_examples > 0 else "N/A")
-
-    # Show first example if we have one
-    if first_example_ids:
-        print(f"\nFirst example (first 10 token IDs):")
-        print(f"  {first_example_ids[:10]}...")
-
-        # Initialize tokenizer to decode
-        tokenizer = TikToken()
-
-        # Decode first example
-        decoded = tokenizer.decode(first_example_ids[:100])  # First 100 tokens
-        print(f"\nFirst example decoded (first 100 tokens):")
-        print(f"  {decoded}...")
 
 
 def main():
     """
-    Main function to tokenize nous_corpus.txt (STREAMING VERSION)
+    Main function to tokenize nous_corpus.txt backwards
     """
     print("="*80)
-    print("NOUS CORPUS TOKENIZER (STREAMING MODE)")
-    print("Using TikToken tokenizer")
+    print("NOUS CORPUS BACKWARDS TOKENIZER")
+    print("Using TikToken tokenizer (r50k_base)")
+    print("Processes from END to START to free disk space as we go")
     print("="*80)
 
-    # Paths
-    input_path = get_training_data_path('nous_corpus.txt')
-    output_path = get_training_data_path('nous_corpus.pkl')
+    # Hardcoded paths to Seagate HDD
+    input_path = "/Volumes/Seagate HDD/training_data/nous_corpus.txt"
+    output_path = "/Volumes/Seagate HDD/training_data/nous_corpus.pkl"
+    archive_path = "/Volumes/Seagate HDD/training_data/nous_corpus_archive.txt.zst"
 
-    # Tokenize (returns statistics dict, not actual tokens)
-    stats = tokenize_corpus(
+    # Tokenize backwards
+    stats = tokenize_corpus_backwards(
         input_path=input_path,
         output_path=output_path,
-        target_tokens=46_000_000_000
+        archive_path=archive_path,
+        checkpoint_frequency=100000,  # Save checkpoint every 100K examples
+        chunk_size=10000
     )
 
     if stats is not None:
-        # Verify
-        verify_tokenized_data(output_path)
-
         print("\n" + "="*80)
         print("TOKENIZATION PIPELINE COMPLETE!")
         print("="*80)
-        print(f"Text corpus: {input_path}")
-        print(f"Tokenized corpus: {output_path}")
-        print(f"Ready for training!")
+        print(f"Tokenized corpus: {output_path} ({stats['pkl_size_gb']:.2f} GB)")
+        print(f"Compressed archive: {archive_path} ({stats['archive_size_gb']:.2f} GB)")
+        print(f"Total space used: {stats['pkl_size_gb'] + stats['archive_size_gb']:.2f} GB")
+        print(f"Space saved: {359 - (stats['pkl_size_gb'] + stats['archive_size_gb']):.2f} GB")
+        print(f"\nReady for training!")
         print("="*80)
 
 

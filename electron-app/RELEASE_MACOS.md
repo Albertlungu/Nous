@@ -8,6 +8,14 @@ This project is configured to notarize automatically during `electron-builder` a
 2. A valid `Developer ID Application` certificate installed in Keychain on this Mac.
 3. App-specific password for your Apple ID.
 
+Verify certificate presence before release build:
+
+```bash
+security find-identity -v -p codesigning
+```
+
+If you only see `Apple Development` and not `Developer ID Application`, release signing will fail.
+
 ## One-time credential setup (shell env)
 
 Set these in your shell before building:
@@ -31,10 +39,29 @@ cd electron-app
 npm run build:mac:release
 ```
 
+The command now runs a precheck and fails fast with a clear message when release-signing prerequisites are missing.
+
+## If you are not in Apple Developer Program
+
+You can still generate a distributable macOS build, but it will be unsigned and not notarized.
+
+```bash
+cd electron-app
+npm run build:mac:unsigned
+```
+
+Important behavior of unsigned builds:
+1. Gatekeeper warnings are expected on first launch.
+2. Users may need to right-click the app and choose `Open`, or remove quarantine manually.
+3. This is less trustable than signed/notarized releases and is best for testers.
+
 This performs:
-1. Developer ID signing (electron-builder)
-2. Notarization (`scripts/notarize.js` via `@electron/notarize`)
-3. DMG creation in `electron-app/dist`
+1. Build a standalone backend binary (`scripts/build_backend_macos.sh`)
+2. Developer ID signing (electron-builder)
+3. Notarization (`scripts/notarize.js` via `@electron/notarize`)
+4. DMG creation in `electron-app/dist`
+
+The release no longer relies on shipping a machine-specific Python `venv` inside the app bundle.
 
 ## Validate locally
 

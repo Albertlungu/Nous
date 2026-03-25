@@ -28,11 +28,19 @@ My point is that this app, Nous, allows you to do exactly that: configure litera
 
 **Example outputs for the current model (details below):**
 ```
+Prompt: Explain what NLP is
+Output: NLP is a type of artificial intelligence that enables computer systems to learn from data. It enables steps such as analyzing, understanding and comprehend, by describes the idea behind it and identify a specific topic about computers. It can also be used for natural language processing, machine translation and text summarization, such as voice assistants orPT-rich dialogue tools. Additionally, Machine learning algorithms can optimize processes in real-time, and provide insights into customer behavior.
 
+Prompt: Can you please explain to me what photosynthesis is?
+Output: Photosynthesis is the process by which plants, algae, and some bacteria convert sunlight, water, and carbon dioxide into energy in a series of replication. This process has various applications and it serves as a primary energy source of energy for plants and other organisms; it also converts carbon dioxide into glucose through a process known as oxygen.
 ```
 
 ## Quickstart
 Download the Nous app (.dmg file) from the releases page and follow the onscreen instructions. Then, you may explore the app as you wish.
+
+**Demo Video:**
+
+https://github.com/Albertlungu/Nous/raw/refs/heads/JAX/concepts/assets/nous-demo.mov
 
 A few notes:
 1. The chat tab is for chatting with the current model. You can change generation settings in the top right corner by clicking on the gear icon.
@@ -113,7 +121,7 @@ python src/main.py
 
 Then, follow the instructions given to you in the command line. It should look like this once the code is run:
 ```markdown
-Hello World - Starting PyGPT
+Hello World - Starting Nous
 
 To train the model from scratch, please enter 't'
 To extend from a previous checkpoint, please enter 'e'
@@ -123,7 +131,7 @@ Or, to enter your own user input, please enter 'i':
 ```
 
 ## User guide:
-PyGPT already comes pre-installed with two models, `epoch155.pkl`, which just exists to have a backup, and `model.pkl`. Both of these can be found by right clicking the app and selecting `"Show Package Contents"`, then visiting `contents/resources/artifacts/models`. They have been trained for 155 total epochs, with a final loss of ~0.6
+Nous already comes pre-installed with two models, `epoch155.pkl`, which just exists to have a backup, and `model.pkl`. Both of these can be found by right clicking the app and selecting `"Show Package Contents"`, then visiting `contents/resources/artifacts/models`. They have been trained for 155 total epochs, with a final loss of ~0.6
 
 It is 77M parameters, which you will be able to see in the app.
 
@@ -216,7 +224,7 @@ The current fully trained model (which is kind of stupid) can be found in `artif
   - Second extend run:  25 epochs (loss 0.76 -> 0.69)
   - Third extend run:   35 epochs (loss 0.69 -> 0.62)
 
-File Path: PyGPT/artifacts/models/model.pkl
+File Path: Nous/artifacts/models/model.pkl
 File Size: 881 MB (full checkpoint with optimizer state)
 Model Size (float16): ~146.67 MB (weights only)
 Format: Pickle (.pkl)

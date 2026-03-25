@@ -17,6 +17,8 @@ venv
 alpaca284*.pkl
 
 electron-app/node_modules
+electron-app/backend-build/
+electron-app/backend-dist/
 dist/
 out/
 build/
@@ -39,6 +41,7 @@ venv
 **/.DS_Store
 **/.vscode/
 *.VSCodeCounter
+.claude/
 
 # =========================
 # Logs and temporary files
