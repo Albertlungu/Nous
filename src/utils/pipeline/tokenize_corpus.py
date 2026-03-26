@@ -325,18 +325,18 @@ def tokenize_corpus_backwards(input_path, output_path, archive_path, checkpoint_
 
 def main():
     """
-    Main function to tokenize nous_corpus.txt backwards
+    Main function to tokenize corpus.txt backwards
     """
     print("="*80)
     print("NOUS CORPUS BACKWARDS TOKENIZER")
-    print("Using TikToken tokenizer (r50k_base)")
+    print("Using TikToken tokenizer (cl100k_base)")
     print("Processes from END to START to free disk space as we go")
     print("="*80)
 
-    # Hardcoded paths to Seagate HDD
-    input_path = "/Volumes/Seagate HDD/training_data/nous_corpus.txt"
-    output_path = "/Volumes/Seagate HDD/training_data/nous_corpus.pkl"
-    archive_path = "/Volumes/Seagate HDD/training_data/nous_corpus_archive.txt.zst"
+    # Paths to Extreme SSD
+    input_path = "/Volumes/Extreme SSD/Nous/training_data/text/corpus.txt"
+    output_path = "/Volumes/Extreme SSD/Nous/training_data/text/corpus.pkl"
+    archive_path = "/Volumes/Extreme SSD/Nous/training_data/text/corpus_archive.txt.zst"
 
     # Tokenize backwards
     stats = tokenize_corpus_backwards(
