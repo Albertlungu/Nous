@@ -846,8 +846,8 @@ class Trainer:
                                 target_tokens_split, dtype=jnp.int32
                             )
 
-                            # Get current parameters and replicate
-                            # Note: Must replicate every batch because params are updated after each step
+                            # Get current parameters
+                            # JAX pmap will automatically broadcast params without device dimension
                             embed_params = self.embedding_layer.get_params()
                             stack_params = [
                                 block.get_params()
@@ -859,29 +859,11 @@ class Trainer:
                                 "beta": self.final_beta,
                             }
 
-                            # Replicate params across devices
-                            replicated_embed = tree.tree_map(
-                                lambda p: jnp.stack([p] * self.num_devices),
-                                embed_params,
-                            )
-                            replicated_stack = tree.tree_map(
-                                lambda p: jnp.stack([p] * self.num_devices),
-                                stack_params,
-                            )
-                            replicated_output = tree.tree_map(
-                                lambda p: jnp.stack([p] * self.num_devices),
-                                output_params,
-                            )
-                            replicated_final_ln = tree.tree_map(
-                                lambda p: jnp.stack([p] * self.num_devices),
-                                final_ln_params,
-                            )
-
                             losses, grads_tuple = self._compiled_loss_and_grad_pmap(
-                                replicated_embed,
-                                replicated_stack,
-                                replicated_output,
-                                replicated_final_ln,
+                                embed_params,
+                                stack_params,
+                                output_params,
+                                final_ln_params,
                                 input_tokens_split,
                                 target_tokens_split,
                             )
