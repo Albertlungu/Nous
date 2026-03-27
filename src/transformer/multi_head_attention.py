@@ -112,24 +112,44 @@ class MultiHeadAttention:
         K = K.transpose(0,2,1,3)
         V = V.transpose(0,2,1,3)
 
-        # Scaled dot product attention
-        scores = Q @ K.transpose(0, 1, 3, 2) / jnp.sqrt(head_dim)
+        # Use memory-efficient attention (flash attention variant)
+        # Create causal mask once (broadcast compatible shape)
+        mask = jnp.tril(jnp.ones((1, 1, seq_len, seq_len)))
 
-        # Casual mask
-        mask = jnp.tril(jnp.ones((seq_len, seq_len))) # See readme for what jnp.tril and jnp.ones do
-        scores = jnp.where(mask == 0, -1e9, scores) # See readme for what jnp.where does
+        # Use JAX's optimized dot_product_attention when available
+        try:
+            from jax.nn import dot_product_attention
 
-        # Softmax to find weights
-        attn_weights = jax.nn.softmax(scores, axis=-1)  # type: ignore  # See readme for what axis=-1 is
+            # dot_product_attention expects mask where True = attend, False = mask out
+            # Our mask has 1s for valid positions, 0s for masked
+            attn_mask = mask.astype(bool)
 
-        if training and dropout > 0.0 and rng_key is not None:
-            keep_prob = 1.0 - dropout
-            dropout_mask = jax.random.bernoulli(rng_key, keep_prob, attn_weights.shape)
-            attn_weights = jnp.where(dropout_mask, attn_weights / keep_prob, 0.0)
+            attn_output = dot_product_attention(
+                query=Q,
+                key=K,
+                value=V,
+                mask=attn_mask,
+                scale=1.0 / jnp.sqrt(head_dim),
+            )
 
+            # Apply dropout if needed (dot_product_attention doesn't handle dropout)
+            if training and dropout > 0.0 and rng_key is not None:
+                keep_prob = 1.0 - dropout
+                dropout_mask = jax.random.bernoulli(rng_key, keep_prob, attn_output.shape)
+                attn_output = jnp.where(dropout_mask, attn_output / keep_prob, 0.0)
 
-        # Apply attention to values
-        attn_output = attn_weights @ V
+        except ImportError:
+            # Fallback to standard attention if dot_product_attention not available
+            scores = Q @ K.transpose(0, 1, 3, 2) / jnp.sqrt(head_dim)
+            scores = jnp.where(mask == 0, -1e9, scores)
+            attn_weights = jax.nn.softmax(scores, axis=-1)
+
+            if training and dropout > 0.0 and rng_key is not None:
+                keep_prob = 1.0 - dropout
+                dropout_mask = jax.random.bernoulli(rng_key, keep_prob, attn_weights.shape)
+                attn_weights = jnp.where(dropout_mask, attn_weights / keep_prob, 0.0)
+
+            attn_output = attn_weights @ V
 
         # Combining the heads together to make final output
         attn_output = attn_output.transpose(0,2,1,3)

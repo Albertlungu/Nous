@@ -129,6 +129,10 @@ class Trainer:
             print(f"Single GPU mode: Using {self.devices[0]}")
             self.use_multi_gpu = False
 
+        # Parameter caching to avoid repeated dictionary construction
+        self._cached_params = None
+        self._params_dirty = True
+
         # Validate that embedding_dim is divisible by num_heads
         if embedding_dim % num_heads != 0:
             raise ValueError(
@@ -312,16 +316,26 @@ class Trainer:
                 current = embeddings
                 total_aux_loss = 0.0
 
-                # Use gradient checkpointing to reduce memory
+                # Checkpoint every 4 blocks instead of every block for better speed
+                # With 80GB VRAM, we can afford less aggressive checkpointing
+                checkpoint_every = 4
+
                 for i in range(num_blocks):
                     block_params = stack_params[i]
 
-                    def checkpointed_block(c, bp=block_params):
-                        return TransformerBlock.fwd(
-                            bp, c, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
+                    if i % checkpoint_every == 0:
+                        # Checkpoint this block
+                        def checkpointed_block(c, bp=block_params):
+                            return TransformerBlock.fwd(
+                                bp, c, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
+                            )
+                        current, aux_loss = jax.checkpoint(checkpointed_block)(current)
+                    else:
+                        # No checkpoint for this block
+                        current, aux_loss = TransformerBlock.fwd(
+                            block_params, current, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
                         )
 
-                    current, aux_loss = jax.checkpoint(checkpointed_block)(current)
                     total_aux_loss += aux_loss
 
                 # Apply final LayerNorm after all transformer blocks
@@ -458,16 +472,26 @@ class Trainer:
                 current = embeddings
                 total_aux_loss = 0.0
 
-                # Use gradient checkpointing to reduce memory
+                # Checkpoint every 4 blocks instead of every block for better speed
+                # With 80GB VRAM, we can afford less aggressive checkpointing
+                checkpoint_every = 4
+
                 for i in range(num_blocks):
                     block_params = stack_params[i]
 
-                    def checkpointed_block(c, bp=block_params):
-                        return TransformerBlock.fwd(
-                            bp, c, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
+                    if i % checkpoint_every == 0:
+                        # Checkpoint this block
+                        def checkpointed_block(c, bp=block_params):
+                            return TransformerBlock.fwd(
+                                bp, c, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
+                            )
+                        current, aux_loss = jax.checkpoint(checkpointed_block)(current)
+                    else:
+                        # No checkpoint for this block
+                        current, aux_loss = TransformerBlock.fwd(
+                            block_params, current, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
                         )
 
-                    current, aux_loss = jax.checkpoint(checkpointed_block)(current)
                     total_aux_loss += aux_loss
 
                 current = TransformerBlock.layer_norm(
@@ -607,10 +631,16 @@ class Trainer:
         Returns:
             tuple: (loss, all_grads)
         """
-        embed_params = self.embedding_layer.get_params()
-        stack_params = [block.get_params() for block in self.transformer_stack.blocks]
-        output_params = self.output_layer.get_params()
-        final_ln_params = {"gamma": self.final_gamma, "beta": self.final_beta}
+        # Use cached parameters if available and not dirty
+        if self._params_dirty or self._cached_params is None:
+            embed_params = self.embedding_layer.get_params()
+            stack_params = [block.get_params() for block in self.transformer_stack.blocks]
+            output_params = self.output_layer.get_params()
+            final_ln_params = {"gamma": self.final_gamma, "beta": self.final_beta}
+            self._cached_params = (embed_params, stack_params, output_params, final_ln_params)
+            self._params_dirty = False
+        else:
+            embed_params, stack_params, output_params, final_ln_params = self._cached_params
 
         # Use the pre-compiled JIT function
         loss, grads = self._compiled_loss_and_grad(
@@ -674,6 +704,9 @@ class Trainer:
         # Anyways force weight tying by making W_out ALWAYS = embeddings.T
 
         self.output_layer.b_out = jnp.clip(self.output_layer.b_out, -10.0, 10.0)
+
+        # Mark parameter cache as dirty after update
+        self._params_dirty = True
 
     def _replicate_params_to_devices(self):
         """Replicate parameters across all devices for pmap."""
