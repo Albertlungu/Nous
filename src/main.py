@@ -56,37 +56,33 @@ def train():
     tokenizer = TikToken()
     print(f"Loaded TikToken tokenizer with vocab size: {tokenizer.vocab_size}")
 
-    # with open("artifacts/tokenizer/tokenizer_alpaca.pkl", "rb") as f:
-    #     tokenizer = pickle.load(f)
-    #     tokenizer._ensure_vocab()
+    from src.data.jax_streaming_loader import JAXStreamingLoader
 
-    # Load the new tokenized dataset
-    with open("training_data/nous_corpus.pkl", "rb") as f:
-        token_ids = pickle.load(f)
-
-    # with open("training_data/alpaca_tokenized.pkl", "rb") as f:
-    #     token_ids = pickle.load(f)
-
-    print("=" * 60)
-    print("Appended training texts to list")
-    print("=" * 60)
+    streaming_loader = JAXStreamingLoader(
+        repo_id="albertlungu/final-nous-corpus",
+        filename="corpus.txt.zst",
+        tokenizer_name="cl100k_base",
+        batch_size=2,
+        seq_length=2048,
+    )
 
     trainer = Trainer(
         tokenizer=tokenizer,
-        token_ids=token_ids,
-        lr=1.2e-3,
-        num_blocks=16,
+        lr=3e-4,
+        num_blocks=20,
         num_heads=16,
-        embedding_dim=1024,
-        max_seq_length=256,
+        embedding_dim=1792,
+        max_seq_length=2048,
         use_moe=True,
-        num_experts=16,
+        num_experts=4,
         experts_per_token=2,
         dropout=0.0,
         use_lr_schedule=True,
-        warmup_steps=500,
-        min_lr=5e-6,
+        warmup_steps=2000,
+        min_lr=3e-5,
         load_balance_coef=0.01,
+        use_multi_gpu=True,
+        gradient_accumulation_steps=1,
     )
 
     # Print model architecture summary
@@ -100,11 +96,11 @@ def train():
 
     # Train with automatic checkpointing
     trainer.train(
-        epochs=150,
-        batch_size=32,
-        checkpoint_path="artifacts/models/nous.pkl",
+        data_loader=streaming_loader,
+        epochs=1,
+        checkpoint_path="artifacts/models/nous_4b.pkl",
         save_every=1,
-        prompt="Instruction: List three best practices for starting a conversation.\nInput: \nOutput:",
+        prompt="The meaning of life is",
     )
 
     end_train = time.time() - train_time
@@ -130,13 +126,18 @@ def extend():
     tokenizer = TikToken()
     print(f"Loaded TikToken tokenizer with vocab size: {tokenizer.vocab_size}")
 
-    # Load token_ids to match train() function
-    with open(get_training_data_path("tiktoken_combined_new.pkl"), "rb") as f:
-        token_ids = pickle.load(f)
+    from src.data.jax_streaming_loader import JAXStreamingLoader
+
+    streaming_loader = JAXStreamingLoader(
+        repo_id="albertlungu/final-nous-corpus",
+        filename="corpus.txt.zst",
+        tokenizer_name="cl100k_base",
+        batch_size=64,
+        seq_length=256,
+    )
 
     trainer = Trainer(
         tokenizer=tokenizer,
-        token_ids=token_ids,
         lr=1.2e-3,  # Base learning rate
         num_blocks=8,  # Must match checkpoint!
         num_heads=8,  # Must match checkpoint!
@@ -153,9 +154,9 @@ def extend():
     )
 
     trainer.extend_training(
+        data_loader=streaming_loader,
         checkpoint_path="",
         epochs=50,
-        batch_size=64,
         save_every=1,
         prompt="Instruction: List three best practices for starting a conversation.\nInput: \nOutput:",
     )

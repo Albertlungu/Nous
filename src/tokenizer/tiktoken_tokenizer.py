@@ -19,17 +19,17 @@ class TikToken:
     """
     def __init__(
             self,
-            encoding="r50k_base"
+            encoding="cl100k_base"
             ):
         """
         Initializing TikToken class.
 
         Args:
-            encoding (str, optional): Encoding name from TikToken. Defaults to "r50k_base".
+            encoding (str, optional): Encoding name from TikToken. Defaults to "cl100k_base".
         """
         self.enc = tiktoken.get_encoding(encoding)
         original_vocab = self.enc.max_token_value + 1
-        self.vocab_size = 50304  # +1 because max_token_value is 0-indexed
+        self.vocab_size = original_vocab + 5  # Add 5 special tokens
         self._original_vocab_size = original_vocab
         self.eos_token_id = self.enc.eot_token
         # Use 0 as padding token ID (common convention)

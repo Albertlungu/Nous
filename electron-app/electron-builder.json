@@ -1,6 +1,6 @@
 {
-  "appId": "com.pygpt.app",
-  "productName": "PyGPT",
+  "appId": "com.nous.app",
+  "productName": "Nous",
   "directories": {
     "output": "dist"
   },
@@ -31,8 +31,8 @@
       "filter": ["**/*.py"]
     },
     {
-      "from": "../venv",
-      "to": "venv"
+      "from": "backend-dist/nous-api-server",
+      "to": "backend/nous-api-server"
     },
     {
       "from": "../artifacts",

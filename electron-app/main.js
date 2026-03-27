@@ -39,7 +39,7 @@ async function findAvailablePort(startPort = 5000, maxAttempts = 200) {
     throw new Error(`No available port found from ${startPort} to ${startPort + maxAttempts - 1}`);
 }
 
-function waitForBackend(port, timeoutMs = 20000, intervalMs = 250) {
+function waitForBackend(port, timeoutMs = 60000, intervalMs = 250) {
     return new Promise((resolve) => {
         const start = Date.now();
 
@@ -226,7 +226,7 @@ function startPythonServer() {
                 log(`Failed to start backend: ${err.message}`);
             });
 
-            const ready = await waitForBackend(apiPort, 20000, 250);
+            const ready = await waitForBackend(apiPort, 60000, 250);
             if (!ready) {
                 log(`Backend health check timed out on port ${apiPort}`);
             } else {
