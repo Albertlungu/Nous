@@ -5,6 +5,7 @@ Downloads compressed text, tokenizes on-the-fly, yields batches.
 
 import os
 from typing import Iterator, Optional
+import random
 
 import numpy as np
 import tiktoken
@@ -28,6 +29,8 @@ class JAXStreamingLoader:
         seq_length: int = 256,
         cache_dir: Optional[str] = "/tmp/hf_streaming_cache",
         buffer_size_mb: int = 100,
+        shuffle: bool = False,
+        shuffle_buffer_size: int = 10000,
     ):
         """
         Initialize streaming loader.
@@ -40,6 +43,8 @@ class JAXStreamingLoader:
             seq_length: Length of each sequence (must match model's max_seq_length)
             cache_dir: Local cache directory for downloaded chunks
             buffer_size_mb: Size of decompression buffer in MB
+            shuffle: Whether to shuffle documents using a buffer
+            shuffle_buffer_size: Number of documents to keep in shuffle buffer
         """
         self.repo_id = repo_id
         self.filename = filename
@@ -47,6 +52,8 @@ class JAXStreamingLoader:
         self.seq_length = seq_length
         self.cache_dir = cache_dir
         self.buffer_size = buffer_size_mb * 1024 * 1024
+        self.shuffle = shuffle
+        self.shuffle_buffer_size = shuffle_buffer_size
 
         # Create cache directory
         if cache_dir:
@@ -125,10 +132,18 @@ class JAXStreamingLoader:
     def stream_batches(self) -> Iterator[np.ndarray]:
         """
         Stream batches from HuggingFace dataset.
+        If shuffle=True, uses a document buffer to mix documents.
 
         Yields:
             np.ndarray: Batch of shape (batch_size, seq_length)
         """
+        if self.shuffle:
+            yield from self._stream_batches_shuffled()
+        else:
+            yield from self._stream_batches_sequential()
+
+    def _stream_batches_sequential(self) -> Iterator[np.ndarray]:
+        """Stream batches sequentially without shuffling."""
         batch = []
 
         print("Starting streaming from HuggingFace...")
@@ -157,6 +172,63 @@ class JAXStreamingLoader:
             # Pad final batch to batch_size
             while len(batch) < self.batch_size:
                 # Pad with zeros (will be masked during loss calculation)
+                batch.append([0] * self.seq_length)
+            yield np.array(batch, dtype=np.int32)
+
+    def _stream_batches_shuffled(self) -> Iterator[np.ndarray]:
+        """Stream batches with document-level shuffling using a buffer."""
+        print(f"Starting streaming from HuggingFace with shuffle (buffer size: {self.shuffle_buffer_size})...")
+
+        document_buffer = []
+        batch = []
+
+        for text_chunk in self._stream_decompress():
+            # Add document to shuffle buffer
+            document_buffer.append(text_chunk)
+
+            # Once buffer is full, start yielding shuffled documents
+            if len(document_buffer) >= self.shuffle_buffer_size:
+                # Shuffle buffer
+                random.shuffle(document_buffer)
+
+                # Process half the buffer (keep refilling for continuous shuffling)
+                docs_to_process = document_buffer[: self.shuffle_buffer_size // 2]
+                document_buffer = document_buffer[self.shuffle_buffer_size // 2 :]
+
+                # Tokenize and create sequences from shuffled docs
+                for doc in docs_to_process:
+                    tokens = self._tokenize_text(doc)
+                    self.token_buffer.extend(tokens)
+
+                    # Create sequences
+                    while len(self.token_buffer) >= self.seq_length:
+                        sequence = self.token_buffer[: self.seq_length]
+                        self.token_buffer = self.token_buffer[self.seq_length :]
+
+                        batch.append(sequence)
+
+                        if len(batch) == self.batch_size:
+                            yield np.array(batch, dtype=np.int32)
+                            batch = []
+
+        # Process remaining buffer
+        random.shuffle(document_buffer)
+        for doc in document_buffer:
+            tokens = self._tokenize_text(doc)
+            self.token_buffer.extend(tokens)
+
+            while len(self.token_buffer) >= self.seq_length:
+                sequence = self.token_buffer[: self.seq_length]
+                self.token_buffer = self.token_buffer[self.seq_length :]
+                batch.append(sequence)
+
+                if len(batch) == self.batch_size:
+                    yield np.array(batch, dtype=np.int32)
+                    batch = []
+
+        # Yield final partial batch
+        if batch:
+            while len(batch) < self.batch_size:
                 batch.append([0] * self.seq_length)
             yield np.array(batch, dtype=np.int32)
 

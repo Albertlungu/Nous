@@ -312,18 +312,17 @@ class Trainer:
                 current = embeddings
                 total_aux_loss = 0.0
 
-                # Use gradient checkpointing to reduce memory usage
-                # Recomputes activations during backward pass instead of storing them
                 for i in range(num_blocks):
                     block_params = stack_params[i]
-
-                    # Wrap block forward in checkpoint to save memory
-                    def checkpointed_block_fwd(c, bp=block_params):
-                        return TransformerBlock.fwd(
-                            bp, c, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
-                        )
-
-                    current, aux_loss = jax.checkpoint(checkpointed_block_fwd)(current)
+                    current, aux_loss = TransformerBlock.fwd(
+                        block_params,
+                        current,
+                        num_heads,
+                        head_dim,
+                        embedding_dim,
+                        num_experts,
+                        experts_per_token,
+                    )
                     total_aux_loss += aux_loss
 
                 # Apply final LayerNorm after all transformer blocks
@@ -460,18 +459,17 @@ class Trainer:
                 current = embeddings
                 total_aux_loss = 0.0
 
-                # Use gradient checkpointing to reduce memory usage
-                # Recomputes activations during backward pass instead of storing them
                 for i in range(num_blocks):
                     block_params = stack_params[i]
-
-                    # Wrap block forward in checkpoint to save memory
-                    def checkpointed_block_fwd(c, bp=block_params):
-                        return TransformerBlock.fwd(
-                            bp, c, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
-                        )
-
-                    current, aux_loss = jax.checkpoint(checkpointed_block_fwd)(current)
+                    current, aux_loss = TransformerBlock.fwd(
+                        block_params,
+                        current,
+                        num_heads,
+                        head_dim,
+                        embedding_dim,
+                        num_experts,
+                        experts_per_token,
+                    )
                     total_aux_loss += aux_loss
 
                 current = TransformerBlock.layer_norm(
@@ -752,6 +750,7 @@ class Trainer:
         checkpoint_path: str,
         save_every=1,
         prompt="",
+        max_batches=None,
     ):
         """
         Train the model with JAX autodiff.
@@ -821,6 +820,12 @@ class Trainer:
                     )
                 ):
                     batch_count += 1
+
+                    # Stop if max_batches reached
+                    if max_batches and batch_count > max_batches:
+                        print(f"\nReached max_batches limit ({max_batches:,}). Stopping training.")
+                        break
+
                     start_time = t.time()
 
                     # Convert to JAX array

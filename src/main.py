@@ -65,8 +65,9 @@ def train():
         repo_id="albertlungu/final-nous-corpus",
         filename="corpus.txt.zst",
         tokenizer_name="cl100k_base",
-        batch_size=4,
+        batch_size=16,
         seq_length=1536,
+        shuffle=True,  # Shuffle to mix code, math, and text
     )
 
     trainer = Trainer(
@@ -98,12 +99,20 @@ def train():
     train_time = time.time()
 
     # Train with automatic checkpointing
+    # Target: 40 billion tokens for 2B model
+    # batch_size=16, seq_length=1536 = 24,576 tokens/batch
+    # 40B tokens / 24,576 = 1,627,604 batches
+    max_batches = 1_627_604
+    print(f"\nTraining target: {max_batches:,} batches (~40B tokens)")
+    print(f"Estimated time at 0.5s/batch: {max_batches * 0.5 / 3600:.1f} hours ({max_batches * 0.5 / (3600 * 24):.1f} days)\n")
+
     trainer.train(
         data_loader=streaming_loader,
         epochs=1,
-        checkpoint_path="artifacts/models/nous_4b.pkl",
+        checkpoint_path="artifacts/models/nous_2b.pkl",
         save_every=1,
         prompt="The meaning of life is",
+        max_batches=max_batches,
     )
 
     end_train = time.time() - train_time
