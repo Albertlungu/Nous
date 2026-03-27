@@ -65,7 +65,7 @@ def train():
         repo_id="albertlungu/final-nous-corpus",
         filename="corpus.txt.zst",
         tokenizer_name="cl100k_base",
-        batch_size=2,
+        batch_size=4,
         seq_length=1536,
     )
 
@@ -74,7 +74,7 @@ def train():
         lr=3e-4,
         num_blocks=20,
         num_heads=16,
-        embedding_dim=1792,
+        embedding_dim=1536,
         max_seq_length=1536,
         use_moe=True,
         num_experts=4,
@@ -84,7 +84,7 @@ def train():
         warmup_steps=2000,
         min_lr=3e-5,
         load_balance_coef=0.01,
-        use_multi_gpu=True,
+        use_multi_gpu=False,
         gradient_accumulation_steps=1,
     )
 

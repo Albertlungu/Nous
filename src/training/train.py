@@ -861,21 +861,21 @@ class Trainer:
                                 "beta": self.final_beta,
                             }
 
-                            # Use tree_map with explicit replication (memory shared via JAX's array system)
+                            # Replicate params across devices for pmap
                             replicated_embed = tree.tree_map(
-                                lambda p: jnp.broadcast_to(p, (self.num_devices,) + p.shape),
+                                lambda p: jnp.stack([p] * self.num_devices),
                                 embed_params,
                             )
                             replicated_stack = tree.tree_map(
-                                lambda p: jnp.broadcast_to(p, (self.num_devices,) + p.shape),
+                                lambda p: jnp.stack([p] * self.num_devices),
                                 stack_params,
                             )
                             replicated_output = tree.tree_map(
-                                lambda p: jnp.broadcast_to(p, (self.num_devices,) + p.shape),
+                                lambda p: jnp.stack([p] * self.num_devices),
                                 output_params,
                             )
                             replicated_final_ln = tree.tree_map(
-                                lambda p: jnp.broadcast_to(p, (self.num_devices,) + p.shape),
+                                lambda p: jnp.stack([p] * self.num_devices),
                                 final_ln_params,
                             )
 
