@@ -246,7 +246,7 @@ class MOE:
         # ======= 3: Expert processing (run tokens through experts) ========
         output = jnp.zeros_like(x) # Init output
 
-        # Process each expert
+        # Process each expert only on tokens that selected it
         for i in range(num_experts):
             # Get params
             expert_params = {
@@ -255,22 +255,26 @@ class MOE:
                 'W2': params[f'expert_{i}_W2'],
                 'B2': params[f'expert_{i}_B2']
             }
-            # Mask finds which tokens selected this expert (batch, seq_len)
-            expert_mask = jnp.any(top_k_indices == i, axis=-1) # True where expert is in top_k
 
-            # Get routing weights for this expert
+            # Get routing weights for this expert (batch, seq_len)
             expert_weights = jnp.where(
                 top_k_indices == i,
                 top_k_probs,
                 0.0
-            ).sum(axis=-1) # shape: (batch_seq_len)
+            ).sum(axis=-1)
 
-            # Run expert on all tokens
-            expert_out = MOE.expert_fwd(x, expert_params, activation)
+            # Mask to zero out tokens not using this expert (batch, seq_len, 1)
+            expert_mask = (expert_weights > 0)[..., None]
 
-            # Make a weighted output multiplied by the routing weights
-            weighted_out = expert_out * expert_weights[..., None] # ... adds a dimension (batch, seq_len, 1)
+            # Zero out inputs for tokens not using this expert
+            # This reduces computation in matmuls (sparse patterns)
+            masked_input = jnp.where(expert_mask, x, 0.0)
 
+            # Run expert (on masked input)
+            expert_out = MOE.expert_fwd(masked_input, expert_params, activation)
+
+            # Weight the output
+            weighted_out = expert_out * expert_weights[..., None]
             output = output + weighted_out
 
         # ======= 4: Dropout =======

@@ -3,6 +3,9 @@ import os
 # import numpy as np
 import sys
 
+# Suppress verbose XLA compilation logging
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
 # import jax
 # import jax.numpy as jnp
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -63,7 +66,7 @@ def train():
         filename="corpus.txt.zst",
         tokenizer_name="cl100k_base",
         batch_size=2,
-        seq_length=2048,
+        seq_length=1536,
     )
 
     trainer = Trainer(
@@ -72,7 +75,7 @@ def train():
         num_blocks=20,
         num_heads=16,
         embedding_dim=1792,
-        max_seq_length=2048,
+        max_seq_length=1536,
         use_moe=True,
         num_experts=4,
         experts_per_token=2,

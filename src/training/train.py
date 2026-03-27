@@ -312,17 +312,18 @@ class Trainer:
                 current = embeddings
                 total_aux_loss = 0.0
 
+                # Use gradient checkpointing to reduce memory usage
+                # Recomputes activations during backward pass instead of storing them
                 for i in range(num_blocks):
                     block_params = stack_params[i]
-                    current, aux_loss = TransformerBlock.fwd(
-                        block_params,
-                        current,
-                        num_heads,
-                        head_dim,
-                        embedding_dim,
-                        num_experts,
-                        experts_per_token,
-                    )
+
+                    # Wrap block forward in checkpoint to save memory
+                    def checkpointed_block_fwd(c, bp=block_params):
+                        return TransformerBlock.fwd(
+                            bp, c, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
+                        )
+
+                    current, aux_loss = jax.checkpoint(checkpointed_block_fwd)(current)
                     total_aux_loss += aux_loss
 
                 # Apply final LayerNorm after all transformer blocks
@@ -459,17 +460,18 @@ class Trainer:
                 current = embeddings
                 total_aux_loss = 0.0
 
+                # Use gradient checkpointing to reduce memory usage
+                # Recomputes activations during backward pass instead of storing them
                 for i in range(num_blocks):
                     block_params = stack_params[i]
-                    current, aux_loss = TransformerBlock.fwd(
-                        block_params,
-                        current,
-                        num_heads,
-                        head_dim,
-                        embedding_dim,
-                        num_experts,
-                        experts_per_token,
-                    )
+
+                    # Wrap block forward in checkpoint to save memory
+                    def checkpointed_block_fwd(c, bp=block_params):
+                        return TransformerBlock.fwd(
+                            bp, c, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
+                        )
+
+                    current, aux_loss = jax.checkpoint(checkpointed_block_fwd)(current)
                     total_aux_loss += aux_loss
 
                 current = TransformerBlock.layer_norm(
@@ -846,8 +848,8 @@ class Trainer:
                                 target_tokens_split, dtype=jnp.int32
                             )
 
-                            # Get current parameters
-                            # JAX pmap will automatically broadcast params without device dimension
+                            # Get current parameters and replicate across devices
+                            # Note: pmap requires all inputs to have device dimension for data parallelism
                             embed_params = self.embedding_layer.get_params()
                             stack_params = [
                                 block.get_params()
@@ -859,11 +861,29 @@ class Trainer:
                                 "beta": self.final_beta,
                             }
 
-                            losses, grads_tuple = self._compiled_loss_and_grad_pmap(
+                            # Use tree_map with explicit replication (memory shared via JAX's array system)
+                            replicated_embed = tree.tree_map(
+                                lambda p: jnp.broadcast_to(p, (self.num_devices,) + p.shape),
                                 embed_params,
+                            )
+                            replicated_stack = tree.tree_map(
+                                lambda p: jnp.broadcast_to(p, (self.num_devices,) + p.shape),
                                 stack_params,
+                            )
+                            replicated_output = tree.tree_map(
+                                lambda p: jnp.broadcast_to(p, (self.num_devices,) + p.shape),
                                 output_params,
+                            )
+                            replicated_final_ln = tree.tree_map(
+                                lambda p: jnp.broadcast_to(p, (self.num_devices,) + p.shape),
                                 final_ln_params,
+                            )
+
+                            losses, grads_tuple = self._compiled_loss_and_grad_pmap(
+                                replicated_embed,
+                                replicated_stack,
+                                replicated_output,
+                                replicated_final_ln,
                                 input_tokens_split,
                                 target_tokens_split,
                             )
