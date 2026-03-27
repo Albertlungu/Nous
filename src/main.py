@@ -65,7 +65,7 @@ def train():
         repo_id="albertlungu/final-nous-corpus",
         filename="corpus.txt.zst",
         tokenizer_name="cl100k_base",
-        batch_size=16,
+        batch_size=8,
         seq_length=1536,
         shuffle=True,  # Shuffle to mix code, math, and text
     )
@@ -73,9 +73,9 @@ def train():
     trainer = Trainer(
         tokenizer=tokenizer,
         lr=3e-4,
-        num_blocks=20,
+        num_blocks=16,  # Reduced from 24 for 700M model
         num_heads=16,
-        embedding_dim=1536,
+        embedding_dim=1024,
         max_seq_length=1536,
         use_moe=True,
         num_experts=4,
@@ -99,17 +99,18 @@ def train():
     train_time = time.time()
 
     # Train with automatic checkpointing
-    # Target: 40 billion tokens for 2B model
-    # batch_size=16, seq_length=1536 = 24,576 tokens/batch
-    # 40B tokens / 24,576 = 1,627,604 batches
-    max_batches = 1_627_604
-    print(f"\nTraining target: {max_batches:,} batches (~40B tokens)")
-    print(f"Estimated time at 0.5s/batch: {max_batches * 0.5 / 3600:.1f} hours ({max_batches * 0.5 / (3600 * 24):.1f} days)\n")
+    # Target: 1.9 billion tokens for 700M model ($50 budget)
+    # batch_size=8, seq_length=1536 = 12,288 tokens/batch
+    # 1.9B tokens / 12,288 = 154,622 batches
+    max_batches = 154_622
+    print(f"\nTraining target: {max_batches:,} batches (~1.9B tokens)")
+    print(f"Budget: $50 at $1.5/hour = 33.3 hours")
+    print(f"Estimated time at 0.39s/batch: {max_batches * 0.39 / 3600:.1f} hours (${max_batches * 0.39 / 3600 * 1.5:.2f} cost)\n")
 
     trainer.train(
         data_loader=streaming_loader,
         epochs=1,
-        checkpoint_path="artifacts/models/nous_2b.pkl",
+        checkpoint_path="artifacts/models/nous_700m_1.9b_tokens.pkl",
         save_every=1,
         prompt="The meaning of life is",
         max_batches=max_batches,

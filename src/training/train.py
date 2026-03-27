@@ -312,17 +312,16 @@ class Trainer:
                 current = embeddings
                 total_aux_loss = 0.0
 
+                # Use gradient checkpointing to reduce memory
                 for i in range(num_blocks):
                     block_params = stack_params[i]
-                    current, aux_loss = TransformerBlock.fwd(
-                        block_params,
-                        current,
-                        num_heads,
-                        head_dim,
-                        embedding_dim,
-                        num_experts,
-                        experts_per_token,
-                    )
+
+                    def checkpointed_block(c, bp=block_params):
+                        return TransformerBlock.fwd(
+                            bp, c, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
+                        )
+
+                    current, aux_loss = jax.checkpoint(checkpointed_block)(current)
                     total_aux_loss += aux_loss
 
                 # Apply final LayerNorm after all transformer blocks
@@ -459,17 +458,16 @@ class Trainer:
                 current = embeddings
                 total_aux_loss = 0.0
 
+                # Use gradient checkpointing to reduce memory
                 for i in range(num_blocks):
                     block_params = stack_params[i]
-                    current, aux_loss = TransformerBlock.fwd(
-                        block_params,
-                        current,
-                        num_heads,
-                        head_dim,
-                        embedding_dim,
-                        num_experts,
-                        experts_per_token,
-                    )
+
+                    def checkpointed_block(c, bp=block_params):
+                        return TransformerBlock.fwd(
+                            bp, c, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
+                        )
+
+                    current, aux_loss = jax.checkpoint(checkpointed_block)(current)
                     total_aux_loss += aux_loss
 
                 current = TransformerBlock.layer_norm(
@@ -776,7 +774,14 @@ class Trainer:
             compressed_size_gb=221.62,  # Your corpus.txt.zst size
             compression_ratio=2.94,
         )
-        print(f"Estimated {estimated_batches} batches per epoch")
+
+        # Use max_batches for progress bar if specified
+        if max_batches:
+            progress_total = max_batches
+            print(f"Training for {max_batches:,} batches (estimated from full corpus: {estimated_batches:,})")
+        else:
+            progress_total = estimated_batches
+            print(f"Estimated {estimated_batches:,} batches per epoch")
 
         # Configure learning rate schedule if enabled
         if self.use_lr_schedule:
@@ -814,7 +819,7 @@ class Trainer:
                     tqdm(
                         batch_iterator,
                         desc=f"Epoch {epoch + 1}/{epochs}",
-                        total=estimated_batches,
+                        total=progress_total,
                         leave=False,
                         file=sys.stderr,
                     )
@@ -997,10 +1002,10 @@ class Trainer:
                     # print(f"  Batch complete in {batch_time:.2f}s")
 
                     # Intermittent generation during training (every N batches)
-                    generation_interval = max(100, estimated_batches // 20)  # 20 checks per epoch, min every 100 batches
+                    generation_interval = max(100, progress_total // 20)  # 20 checks per epoch, min every 100 batches
                     if prompt and batch_count % generation_interval == 0:
                         print(f"\n{'='*60}")
-                        print(f"Generation check at batch {batch_count}/{estimated_batches} (Step {self.optimizer.t})")
+                        print(f"Generation check at batch {batch_count}/{progress_total} (Step {self.optimizer.t})")
                         print(f"Current loss: {float(loss):.4f}, Avg loss: {total_loss/batch_count:.4f}")
                         print(f"{'='*60}")
                         print(f"Prompt: {prompt}")
