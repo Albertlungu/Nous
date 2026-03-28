@@ -1144,39 +1144,28 @@ class Trainer:
             "output": 0,
             "total": 0,
         }
+        
+        embed_params, stack_params, output_params, final_ln_params = self.params_pytree
 
-        # Embedding layer parameters
-        param_counts["embedding"] += self.embedding_layer.embeddings.size
-        param_counts["embedding"] += self.embedding_layer.positional_encodings.size
-
-        # For each transformer block
-        for block in self.transformer_stack.blocks:
-            # Attention parameters
-            param_counts["attention"] += block.attention_layer.W_Q.size
-            param_counts["attention"] += block.attention_layer.W_K.size
-            param_counts["attention"] += block.attention_layer.W_V.size
-            param_counts["attention"] += block.attention_layer.W_O.size
-
-            if block.use_moe:
-                param_counts["feedforward"] += block.moe.count_params()
-            else:
-                # Feedforward parameters
-                param_counts["feedforward"] += block.ffn.W1.size
-                param_counts["feedforward"] += block.ffn.B1.size
-                param_counts["feedforward"] += block.ffn.W2.size
-                param_counts["feedforward"] += block.ffn.B2.size
-
-            # Layer normalization parameters
-            param_counts["layer_norm"] += block.gamma_1.size
-            param_counts["layer_norm"] += block.beta_1.size
-            param_counts["layer_norm"] += block.gamma_2.size
-            param_counts["layer_norm"] += block.beta_2.size
-
-        # Output layer parameters
-        param_counts["output"] += self.output_layer.W_out.size
-        param_counts["output"] += self.output_layer.b_out.size
-
-        # Total (sum all values except 'total' itself)
+        import jax
+        param_counts["embedding"] = sum(x.size for x in jax.tree_util.tree_leaves(embed_params))
+        
+        if "attn" in stack_params:
+            param_counts["attention"] = sum(x.size for x in jax.tree_util.tree_leaves(stack_params["attn"]))
+            
+        if "ffn" in stack_params:
+            param_counts["feedforward"] = sum(x.size for x in jax.tree_util.tree_leaves(stack_params["ffn"]))
+        elif "moe" in stack_params:
+            param_counts["feedforward"] = sum(x.size for x in jax.tree_util.tree_leaves(stack_params["moe"]))
+            
+        param_counts["layer_norm"] = sum(x.size for x in jax.tree_util.tree_leaves([
+            stack_params.get("gamma_1", []), stack_params.get("beta_1", []),
+            stack_params.get("gamma_2", []), stack_params.get("beta_2", []),
+            final_ln_params
+        ]))
+        
+        param_counts["output"] = sum(x.size for x in jax.tree_util.tree_leaves(output_params))
+        
         param_counts["total"] = sum(v for k, v in param_counts.items() if k != "total")
 
         return param_counts
