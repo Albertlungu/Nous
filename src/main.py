@@ -61,12 +61,17 @@ def train():
 
     from src.data.jax_streaming_loader import JAXStreamingLoader
 
+    # Training configuration
+    batch_size = 8
+    seq_length = 1536
+    target_tokens = 6_000_000_000  # 6B tokens
+
     streaming_loader = JAXStreamingLoader(
         repo_id="albertlungu/final-nous-corpus",
         filename="corpus.txt.zst",
         tokenizer_name="cl100k_base",
-        batch_size=16,  # Increased from 8 for faster training
-        seq_length=1536,
+        batch_size=batch_size,
+        seq_length=seq_length,
         shuffle=True,  # Shuffle to mix code, math, and text
     )
 
@@ -98,14 +103,20 @@ def train():
     print("Training model.")
     train_time = time.time()
 
-    # Train with automatic checkpointing
-    # Target: 6 billion tokens for 700M model
-    # batch_size=16, seq_length=1536 = 24,576 tokens/batch
-    # 6B tokens / 24,576 = 244,140 batches
-    max_batches = 244_140
-    print(f"\nTraining target: {max_batches:,} batches (~6B tokens)")
-    print(f"Dataset: albertlungu/final-nous-corpus (221.62 GB compressed, ~174.9B tokens available)")
-    print(f"Estimated time at 4.13 it/s: {max_batches / 4.13 / 3600:.1f} hours\n")
+    # Calculate batches needed for target tokens
+    tokens_per_batch = batch_size * seq_length
+    max_batches = int(target_tokens / tokens_per_batch)
+    actual_tokens = max_batches * tokens_per_batch
+
+    print(f"\nTraining configuration:")
+    print(f"  Batch size: {batch_size}")
+    print(f"  Sequence length: {seq_length}")
+    print(f"  Tokens per batch: {tokens_per_batch:,}")
+    print(f"  Target tokens: {target_tokens:,} ({target_tokens/1e9:.1f}B)")
+    print(f"  Batches needed: {max_batches:,}")
+    print(f"  Actual tokens: {actual_tokens:,} ({actual_tokens/1e9:.2f}B)")
+    print(f"  Dataset: 221.62 GB compressed (~174.9B tokens available)")
+    print(f"  Estimated time at 4.13 it/s: {max_batches / 4.13 / 3600:.1f} hours\n")
 
     trainer.train(
         data_loader=streaming_loader,
