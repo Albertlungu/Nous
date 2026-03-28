@@ -6,6 +6,8 @@ Downloads compressed text, tokenizes on-the-fly, yields batches.
 import os
 from typing import Iterator, Optional
 import random
+from collections import deque
+from itertools import islice
 
 import numpy as np
 import tiktoken
@@ -66,8 +68,8 @@ class JAXStreamingLoader:
         # Add special tokens (matching your TikToken wrapper)
         self.eos_token_id = self.tokenizer.eot_token
 
-        # Token buffer for accumulating tokens across documents
-        self.token_buffer = []
+        # Token buffer for accumulating tokens across documents (using deque for efficiency)
+        self.token_buffer = deque()
 
         # Set up HuggingFace filesystem for streaming (no download)
         print(f"Setting up streaming from {repo_id}/{filename}...")
@@ -158,8 +160,11 @@ class JAXStreamingLoader:
 
             # Create sequences while buffer has enough tokens
             while len(self.token_buffer) >= self.seq_length:
-                sequence = self.token_buffer[: self.seq_length]
-                self.token_buffer = self.token_buffer[self.seq_length :]
+                # Extract sequence from deque (more efficient than list slicing)
+                sequence = list(islice(self.token_buffer, self.seq_length))
+                # Remove consumed tokens from front of deque
+                for _ in range(self.seq_length):
+                    self.token_buffer.popleft()
 
                 batch.append(sequence)
 
@@ -203,8 +208,11 @@ class JAXStreamingLoader:
 
                     # Create sequences
                     while len(self.token_buffer) >= self.seq_length:
-                        sequence = self.token_buffer[: self.seq_length]
-                        self.token_buffer = self.token_buffer[self.seq_length :]
+                        # Extract sequence from deque
+                        sequence = list(islice(self.token_buffer, self.seq_length))
+                        # Remove consumed tokens
+                        for _ in range(self.seq_length):
+                            self.token_buffer.popleft()
 
                         batch.append(sequence)
 
@@ -219,8 +227,11 @@ class JAXStreamingLoader:
             self.token_buffer.extend(tokens)
 
             while len(self.token_buffer) >= self.seq_length:
-                sequence = self.token_buffer[: self.seq_length]
-                self.token_buffer = self.token_buffer[self.seq_length :]
+                # Extract sequence from deque
+                sequence = list(islice(self.token_buffer, self.seq_length))
+                # Remove consumed tokens
+                for _ in range(self.seq_length):
+                    self.token_buffer.popleft()
                 batch.append(sequence)
 
                 if len(batch) == self.batch_size:

@@ -122,8 +122,10 @@ class TransformerBlock:
             jnp.ndarray: Normalized output, same shape as input
         """
 
-        mean = jnp.mean(x, axis=-1 , keepdims=True)
-        var = jnp.var(x, axis=-1, keepdims=True)
+        # Single-pass normalization (more efficient than separate mean/var)
+        mean = jnp.mean(x, axis=-1, keepdims=True)
+        # Compute variance from mean in one pass
+        var = jnp.mean(jnp.square(x - mean), axis=-1, keepdims=True)
         normalized = (x - mean) / jnp.sqrt(var + epsilon)
         output = gamma * normalized + beta
 

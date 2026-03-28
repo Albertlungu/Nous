@@ -136,14 +136,9 @@ class EmbeddingLayer:
         batch_size, seq_len = padded_token_ids.shape
         vocab_size, embedding_dim = embeddings.shape
 
-        # Create one-hot encoding of token IDs
-        # This converts integer indices to a differentiable operation
-        token_ids_one_hot = jax.nn.one_hot(padded_token_ids, vocab_size)  # (batch, seq, vocab)
-
-        # Matrix multiply to get embeddings:
-        # (batch, seq, vocab) @ (vocab, embed_dim) = (batch, seq, embed_dim)
-        token_embeddings = jnp.einsum('bsv,ve->bse', token_ids_one_hot, embeddings)
-        token_embeddings = token_embeddings
+        # Direct indexing (JAX supports gradients through indexing)
+        # This is much more memory-efficient than one-hot encoding
+        token_embeddings = embeddings[padded_token_ids]  # (batch, seq, embed_dim)
 
         seq_len = padded_token_ids.shape[1]
 
