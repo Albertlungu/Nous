@@ -80,7 +80,7 @@ class JAXStreamingLoader:
     def _stream_decompress(self) -> Iterator[str]:
         """
         Stream and decompress the .zst file directly from HuggingFace.
-        Yields complete documents (separated by blank lines) without downloading entire file.
+        Yields text lines (each gets EOS token for boundary learning).
         Uses HfFileSystem for efficient streaming.
         """
         print("Starting stream from HuggingFace...")
@@ -105,14 +105,14 @@ class JAXStreamingLoader:
                         # Handle partial UTF-8 sequences at chunk boundaries
                         continue
 
-                    # Split on double newlines to get complete documents
-                    # Documents in corpus are separated by blank lines
-                    documents = text_buffer.split("\n\n")
-                    text_buffer = documents[-1]  # Keep incomplete document in buffer
+                    # Split on newlines to get lines
+                    # Each line gets an EOS token for frequent boundary signals
+                    lines = text_buffer.split("\n")
+                    text_buffer = lines[-1]  # Keep incomplete line in buffer
 
-                    for doc in documents[:-1]:
-                        if doc.strip():  # Skip empty documents
-                            yield doc
+                    for line in lines[:-1]:
+                        if line.strip():  # Skip empty lines
+                            yield line
 
                 # Yield remaining buffer
                 if text_buffer.strip():
