@@ -65,15 +65,15 @@ def train():
         repo_id="albertlungu/final-nous-corpus",
         filename="corpus.txt.zst",
         tokenizer_name="cl100k_base",
-        batch_size=8,
+        batch_size=16,  # Increased from 8 for faster training
         seq_length=1536,
         shuffle=True,  # Shuffle to mix code, math, and text
     )
 
     trainer = Trainer(
         tokenizer=tokenizer,
-        lr=3e-4,
-        num_blocks=16,  # Reduced from 24 for 700M model
+        lr=4e-4,  # Increased from 3e-4 for faster loss decline
+        num_blocks=16,  # 700M model
         num_heads=16,
         embedding_dim=1024,
         max_seq_length=1536,
@@ -81,7 +81,7 @@ def train():
         num_experts=4,
         experts_per_token=2,
         dropout=0.0,
-        use_lr_schedule=True,
+        use_lr_schedule=True,  # Warmup + cosine decay within epoch
         warmup_steps=2000,
         min_lr=3e-5,
         load_balance_coef=0.01,
@@ -99,18 +99,18 @@ def train():
     train_time = time.time()
 
     # Train with automatic checkpointing
-    # Target: 1.9 billion tokens for 700M model ($50 budget)
-    # batch_size=8, seq_length=1536 = 12,288 tokens/batch
-    # 1.9B tokens / 12,288 = 154,622 batches
-    max_batches = 154_622
-    print(f"\nTraining target: {max_batches:,} batches (~1.9B tokens)")
-    print(f"Budget: $50 at $1.5/hour = 33.3 hours")
-    print(f"Estimated time at 0.39s/batch: {max_batches * 0.39 / 3600:.1f} hours (${max_batches * 0.39 / 3600 * 1.5:.2f} cost)\n")
+    # Target: 6 billion tokens for 700M model
+    # batch_size=16, seq_length=1536 = 24,576 tokens/batch
+    # 6B tokens / 24,576 = 244,140 batches
+    max_batches = 244_140
+    print(f"\nTraining target: {max_batches:,} batches (~6B tokens)")
+    print(f"Dataset: albertlungu/final-nous-corpus (221.62 GB compressed, ~174.9B tokens available)")
+    print(f"Estimated time at 4.13 it/s: {max_batches / 4.13 / 3600:.1f} hours\n")
 
     trainer.train(
         data_loader=streaming_loader,
         epochs=1,
-        checkpoint_path="artifacts/models/nous_700m_1.9b_tokens.pkl",
+        checkpoint_path="artifacts/models/nous_700m_6b_tokens.pkl",
         save_every=1,
         prompt="The meaning of life is",
         max_batches=max_batches,
