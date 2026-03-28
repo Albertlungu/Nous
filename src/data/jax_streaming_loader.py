@@ -125,7 +125,8 @@ class JAXStreamingLoader:
         Returns:
             List of token IDs
         """
-        tokens = self.tokenizer.encode(text)
+        # Allow special tokens to be encoded without raising errors
+        tokens = self.tokenizer.encode(text, allowed_special="all")
         tokens.append(self.eos_token_id)
         return tokens
 
