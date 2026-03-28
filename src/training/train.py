@@ -749,6 +749,34 @@ class Trainer:
         # Reshape: (batch_size, seq_len) -> (num_devices, per_device_batch, seq_len)
         return batch.reshape(self.num_devices, per_device_batch, seq_len)
 
+    def _cleanup_old_checkpoints(self, base_checkpoint_name: str, keep_last: int = 2):
+        """
+        Remove old checkpoints, keeping only the most recent N checkpoints.
+
+        Args:
+            base_checkpoint_name (str): Base name pattern for checkpoints
+            keep_last (int): Number of most recent checkpoints to keep
+        """
+        import glob
+
+        # Find all checkpoints matching the pattern
+        checkpoint_pattern = f"{base_checkpoint_name}_batch*.pkl"
+        checkpoints = glob.glob(checkpoint_pattern)
+
+        if len(checkpoints) <= keep_last:
+            return
+
+        # Sort by modification time (newest first)
+        checkpoints.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+
+        # Delete old checkpoints beyond keep_last
+        for old_checkpoint in checkpoints[keep_last:]:
+            try:
+                os.remove(old_checkpoint)
+                print(f"Removed old checkpoint: {old_checkpoint}")
+            except OSError as e:
+                print(f"Warning: Could not remove {old_checkpoint}: {e}")
+
     def _get_timestamped_checkpoint_path(self, base_path: str):
         """
         Generate a timestamped checkpoint path.
@@ -1050,6 +1078,18 @@ class Trainer:
                         )
                         print(f"\n{'='*60}\n")
 
+                    # Mid-epoch checkpointing (save every 10% of progress)
+                    # Keep only 2 most recent checkpoints to save disk space
+                    checkpoint_interval = max(1000, progress_total // 10)
+                    if batch_count % checkpoint_interval == 0:
+                        checkpoint_name = f"{timestamped_checkpoint}_batch{batch_count}.pkl"
+                        print(f"Saving mid-epoch checkpoint at batch {batch_count}...")
+                        self.save_checkpoint(checkpoint_name)
+
+                        # Clean up old checkpoints (keep only 2 most recent)
+                        self._cleanup_old_checkpoints(timestamped_checkpoint, keep_last=2)
+                        print(f"Checkpoint saved: {checkpoint_name}")
+
                 avg_loss = total_loss / batch_count
                 avg_lr = total_lr / batch_count
                 final_lr = (
@@ -1098,7 +1138,12 @@ class Trainer:
 
         gc.enable()
         print("Training complete! Saving final checkpoint...")
-        self.save_checkpoint(timestamped_checkpoint)
+        final_checkpoint = f"{timestamped_checkpoint}_final.pkl"
+        self.save_checkpoint(final_checkpoint)
+
+        # Clean up to keep only 2 most recent checkpoints (final + one previous)
+        self._cleanup_old_checkpoints(timestamped_checkpoint, keep_last=1)
+        print(f"Final checkpoint saved: {final_checkpoint}")
 
     def count_parameters(self):
         """
