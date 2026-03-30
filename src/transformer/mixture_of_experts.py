@@ -196,16 +196,16 @@ class MOE:
 
         # ======= 3: Expert processing (run tokens through experts) ========
         def process_expert(i, w1, b1, w2, b2):
+            # Extract probabilities for this expert from top_k selection
+            # Shape: (batch, seq_len, experts_per_token) -> (batch, seq_len)
             expert_weights = jnp.where(
                 top_k_indices == i,
                 top_k_probs,
                 0.0
             ).sum(axis=-1)
 
-            # Mask to zero out tokens not using this expert (batch, seq_len, 1)
-            expert_mask = (expert_weights > 0)[..., None]
-            masked_input = jnp.where(expert_mask, x, 0.0)
-
+            # Run expert forward pass on ALL inputs (no masking)
+            # This ensures clean gradient flow
             expert_params = {
                 'W1': w1,
                 'B1': b1,
@@ -213,7 +213,10 @@ class MOE:
                 'B2': b2
             }
 
-            expert_out = MOE.expert_fwd(masked_input, expert_params, activation)
+            expert_out = MOE.expert_fwd(x, expert_params, activation)
+
+            # Weight the output by routing probabilities
+            # Tokens not assigned to this expert get weight=0, so their contribution is zeroed
             return expert_out * expert_weights[..., None]
 
         # Vmap over the experts dimension to execute all experts in parallel
