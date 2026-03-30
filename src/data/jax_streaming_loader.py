@@ -3,11 +3,10 @@ JAX-compatible streaming data loader for HuggingFace datasets.
 Downloads compressed text, tokenizes on-the-fly, yields batches.
 """
 
+import codecs
 import os
-from typing import Iterator, Optional
 import random
-from collections import deque
-from itertools import islice
+from typing import Iterator, Optional
 
 import numpy as np
 import tiktoken
@@ -68,8 +67,13 @@ class JAXStreamingLoader:
         # Add special tokens (matching your TikToken wrapper)
         self.eos_token_id = self.tokenizer.eot_token
 
-        # Token buffer for accumulating tokens across documents (using deque for efficiency)
-        self.token_buffer = deque()
+        # Token buffer as numpy ring buffer for efficient O(1) operations
+        # Pre-allocate buffer that can hold multiple sequences
+        buffer_capacity = max(seq_length * batch_size * 2, 100000)
+        self.token_buffer = np.zeros(buffer_capacity, dtype=np.int32)
+        self.buffer_start = 0
+        self.buffer_end = 0
+        self.buffer_capacity = buffer_capacity
 
         # Set up HuggingFace filesystem for streaming (no download)
         print(f"Setting up streaming from {repo_id}/{filename}...")
@@ -77,46 +81,163 @@ class JAXStreamingLoader:
         self.file_path = f"datasets/{repo_id}/{filename}"
         print(f"Will stream from HuggingFace: {self.file_path}")
 
+    def _buffer_size(self) -> int:
+        """Get current number of tokens in buffer."""
+        return (self.buffer_end - self.buffer_start) % self.buffer_capacity
+
+    def _buffer_extend(self, tokens: list[int]) -> None:
+        """Add tokens to ring buffer."""
+        tokens_array = np.array(tokens, dtype=np.int32)
+        num_tokens = len(tokens_array)
+
+        # Check if buffer needs expansion
+        if self._buffer_size() + num_tokens >= self.buffer_capacity:
+            # Double buffer size and copy existing data
+            new_capacity = self.buffer_capacity * 2
+            new_buffer = np.zeros(new_capacity, dtype=np.int32)
+
+            # Copy existing tokens to new buffer
+            current_size = self._buffer_size()
+            if current_size > 0:
+                if self.buffer_end > self.buffer_start:
+                    new_buffer[:current_size] = self.token_buffer[
+                        self.buffer_start : self.buffer_end
+                    ]
+                else:
+                    # Wrapped around
+                    first_part = self.buffer_capacity - self.buffer_start
+                    new_buffer[:first_part] = self.token_buffer[self.buffer_start :]
+                    new_buffer[first_part:current_size] = self.token_buffer[
+                        : self.buffer_end
+                    ]
+
+            self.token_buffer = new_buffer
+            self.buffer_start = 0
+            self.buffer_end = current_size
+            self.buffer_capacity = new_capacity
+
+        # Add new tokens
+        for i, token in enumerate(tokens_array):
+            self.token_buffer[self.buffer_end] = token
+            self.buffer_end = (self.buffer_end + 1) % self.buffer_capacity
+
+    def _buffer_extract(self, n: int) -> np.ndarray:
+        """Extract n tokens from buffer and remove them."""
+        if n > self._buffer_size():
+            raise ValueError(
+                f"Cannot extract {n} tokens, only {self._buffer_size()} available"
+            )
+
+        result = np.zeros(n, dtype=np.int32)
+
+        # Extract tokens
+        if self.buffer_start + n <= self.buffer_capacity:
+            # No wrap-around
+            result[:] = self.token_buffer[self.buffer_start : self.buffer_start + n]
+        else:
+            # Wrap-around case
+            first_part = self.buffer_capacity - self.buffer_start
+            result[:first_part] = self.token_buffer[self.buffer_start :]
+            result[first_part:] = self.token_buffer[: n - first_part]
+
+        # Update start pointer
+        self.buffer_start = (self.buffer_start + n) % self.buffer_capacity
+
+        return result
+
     def _stream_decompress(self) -> Iterator[str]:
         """
         Stream and decompress the .zst file directly from HuggingFace.
         Yields text lines (each gets EOS token for boundary learning).
-        Uses HfFileSystem for efficient streaming.
+        Uses HfFileSystem for efficient streaming with retry support.
         """
         print("Starting stream from HuggingFace...")
 
-        # Open file stream from HuggingFace (binary mode for zstd)
-        with self.hffs.open(self.file_path, "rb") as remote_file:
-            # Decompress streaming data
-            dctx = zstd.ZstdDecompressor()
-            with dctx.stream_reader(remote_file) as reader:
-                text_buffer = ""
+        max_retries = 5
+        retry_count = 0
+        lines_emitted = 0
 
-                while True:
-                    # Read decompressed chunk
-                    chunk = reader.read(self.buffer_size)
-                    if not chunk:
-                        break
+        while retry_count < max_retries:
+            try:
+                # Recreate filesystem connection for each attempt
+                self.hffs = HfFileSystem()
 
-                    # Decode bytes to text
-                    try:
-                        text_buffer += chunk.decode("utf-8")
-                    except UnicodeDecodeError:
-                        # Handle partial UTF-8 sequences at chunk boundaries
-                        continue
+                # Open file stream from HuggingFace (binary mode for zstd)
+                with self.hffs.open(self.file_path, "rb") as remote_file:
+                    lines_to_skip = lines_emitted
+                    if retry_count > 0 and lines_emitted > 0:
+                        print(
+                            f"Reconnecting and skipping {lines_emitted:,} completed lines..."
+                        )
 
-                    # Split on newlines to get lines
-                    # Each line gets an EOS token for frequent boundary signals
-                    lines = text_buffer.split("\n")
-                    text_buffer = lines[-1]  # Keep incomplete line in buffer
+                    # Decompress streaming data
+                    dctx = zstd.ZstdDecompressor()
+                    with dctx.stream_reader(remote_file) as reader:
+                        decoder = codecs.getincrementaldecoder("utf-8")()
+                        text_buffer = ""
+                        skipped_lines = 0
 
-                    for line in lines[:-1]:
-                        if line.strip():  # Skip empty lines
-                            yield line
+                        while True:
+                            try:
+                                # Read decompressed chunk
+                                chunk = reader.read(self.buffer_size)
+                                if not chunk:
+                                    text_buffer += decoder.decode(b"", final=True)
+                                    break
 
-                # Yield remaining buffer
-                if text_buffer.strip():
-                    yield text_buffer
+                                # Incremental decoder preserves partial UTF-8 sequences across chunks.
+                                text_buffer += decoder.decode(chunk, final=False)
+
+                                # Split on newlines to get lines
+                                # Each line gets an EOS token for frequent boundary signals
+                                lines = text_buffer.split("\n")
+                                text_buffer = lines[
+                                    -1
+                                ]  # Keep incomplete line in buffer
+
+                                for line in lines[:-1]:
+                                    if not line.strip():
+                                        continue
+
+                                    if skipped_lines < lines_to_skip:
+                                        skipped_lines += 1
+                                        continue
+
+                                    yield line
+                                    lines_emitted += 1
+
+                            except (TimeoutError, ConnectionError, OSError) as e:
+                                print(f"Connection error during read: {e}")
+                                print(
+                                    "Will retry stream from start and skip previously yielded lines"
+                                )
+                                raise  # Re-raise to trigger outer retry logic
+
+                        # Yield remaining buffer
+                        if text_buffer.strip():
+                            if skipped_lines < lines_to_skip:
+                                skipped_lines += 1
+                            else:
+                                yield text_buffer
+                                lines_emitted += 1
+
+                        print("Stream completed successfully")
+
+                        # If we got here, stream completed successfully
+                        return
+
+            except Exception as e:
+                retry_count += 1
+                if retry_count >= max_retries:
+                    print(f"Failed after {max_retries} retries. Last error: {e}")
+                    raise
+
+                import time
+
+                wait_time = 2**retry_count  # Exponential backoff
+                print(f"Stream error: {e}")
+                print(f"Retry {retry_count}/{max_retries} after {wait_time}s...")
+                time.sleep(wait_time)
 
     def _tokenize_text(self, text: str) -> list[int]:
         """
@@ -156,16 +277,13 @@ class JAXStreamingLoader:
             # Tokenize the text chunk
             tokens = self._tokenize_text(text_chunk)
 
-            # Add to buffer
-            self.token_buffer.extend(tokens)
+            # Add to buffer using ring buffer
+            self._buffer_extend(tokens)
 
             # Create sequences while buffer has enough tokens
-            while len(self.token_buffer) >= self.seq_length:
-                # Extract sequence from deque (more efficient than list slicing)
-                sequence = list(islice(self.token_buffer, self.seq_length))
-                # Remove consumed tokens from front of deque
-                for _ in range(self.seq_length):
-                    self.token_buffer.popleft()
+            while self._buffer_size() >= self.seq_length:
+                # Extract sequence from buffer (removes tokens automatically)
+                sequence = self._buffer_extract(self.seq_length)
 
                 batch.append(sequence)
 
@@ -179,12 +297,14 @@ class JAXStreamingLoader:
             # Pad final batch to batch_size
             while len(batch) < self.batch_size:
                 # Pad with zeros (will be masked during loss calculation)
-                batch.append([0] * self.seq_length)
+                batch.append(np.zeros(self.seq_length, dtype=np.int32))
             yield np.array(batch, dtype=np.int32)
 
     def _stream_batches_shuffled(self) -> Iterator[np.ndarray]:
         """Stream batches with document-level shuffling using a buffer."""
-        print(f"Starting streaming from HuggingFace with shuffle (buffer size: {self.shuffle_buffer_size})...")
+        print(
+            f"Starting streaming from HuggingFace with shuffle (buffer size: {self.shuffle_buffer_size})..."
+        )
 
         document_buffer = []
         batch = []
@@ -205,15 +325,12 @@ class JAXStreamingLoader:
                 # Tokenize and create sequences from shuffled docs
                 for doc in docs_to_process:
                     tokens = self._tokenize_text(doc)
-                    self.token_buffer.extend(tokens)
+                    self._buffer_extend(tokens)
 
                     # Create sequences
-                    while len(self.token_buffer) >= self.seq_length:
-                        # Extract sequence from deque
-                        sequence = list(islice(self.token_buffer, self.seq_length))
-                        # Remove consumed tokens
-                        for _ in range(self.seq_length):
-                            self.token_buffer.popleft()
+                    while self._buffer_size() >= self.seq_length:
+                        # Extract sequence from buffer
+                        sequence = self._buffer_extract(self.seq_length)
 
                         batch.append(sequence)
 
@@ -225,14 +342,11 @@ class JAXStreamingLoader:
         random.shuffle(document_buffer)
         for doc in document_buffer:
             tokens = self._tokenize_text(doc)
-            self.token_buffer.extend(tokens)
+            self._buffer_extend(tokens)
 
-            while len(self.token_buffer) >= self.seq_length:
-                # Extract sequence from deque
-                sequence = list(islice(self.token_buffer, self.seq_length))
-                # Remove consumed tokens
-                for _ in range(self.seq_length):
-                    self.token_buffer.popleft()
+            while self._buffer_size() >= self.seq_length:
+                # Extract sequence from buffer
+                sequence = self._buffer_extract(self.seq_length)
                 batch.append(sequence)
 
                 if len(batch) == self.batch_size:
@@ -242,7 +356,7 @@ class JAXStreamingLoader:
         # Yield final partial batch
         if batch:
             while len(batch) < self.batch_size:
-                batch.append([0] * self.seq_length)
+                batch.append(np.zeros(self.seq_length, dtype=np.int32))
             yield np.array(batch, dtype=np.int32)
 
     def estimate_total_batches(
@@ -292,7 +406,8 @@ class InfiniteStreamingLoader:
         """
         while True:
             # Reset token buffer at start of each epoch
-            self.base_loader.token_buffer = []
+            self.base_loader.buffer_start = 0
+            self.base_loader.buffer_end = 0
 
             for batch in self.base_loader.stream_batches():
                 yield batch

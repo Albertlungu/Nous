@@ -54,69 +54,46 @@ class MOE:
         self.dropout = dropout
         self.activation = activation
 
-        # Router: decides which experts to use
         self.router_W = (jax.random.normal(
             jax.random.PRNGKey(45),
             (self.embedding_dim, self.num_experts)
         ) * self.scale).astype(self.dtype)
         self.router_B = jnp.zeros(self.num_experts, dtype=self.dtype)
 
-        # Create experts
-        key = jax.random.PRNGKey(46)
-        self.experts = []
-        for i in range(self.num_experts):
-            key, subkey = jax.random.split(key)
-            expert = self._init_expert(subkey)
-            self.experts.append(expert)
-
-
-    def _init_expert(
-            self,
-            key:int
-            ):
-        """
-        Create a single expert. Each expert is an entire FFN.
-
-        Args:
-            key (int): PRNG key used
-
-        Returns:
-            dict: Contains W1, B1, W2, and B2 (weights and biases for both base and residual layers)
-        """
-        k1, k2 = jax.random.split(key)
-
+        # Create experts as stacked arrays
+        k1_key, k2_key = jax.random.split(jax.random.PRNGKey(46))
+        k1_keys = jax.random.split(k1_key, self.num_experts)
+        k2_keys = jax.random.split(k2_key, self.num_experts)
+        
         residual_scale = self.scale / jnp.sqrt(2.0 * self.num_blocks)
+        
+        self.experts_W1 = jax.vmap(lambda k: (jax.random.normal(k, (self.embedding_dim, self.ff_dim)) * self.scale).astype(self.dtype))(k1_keys)
+        self.experts_B1 = jnp.zeros((self.num_experts, self.ff_dim), dtype=self.dtype)
+        self.experts_W2 = jax.vmap(lambda k: (jax.random.normal(k, (self.ff_dim, self.embedding_dim)) * residual_scale).astype(self.dtype))(k2_keys)
+        self.experts_B2 = jnp.zeros((self.num_experts, self.embedding_dim), dtype=self.dtype)
 
-        return {
-            'W1': (jax.random.normal(k1, (self.embedding_dim, self.ff_dim)) * self.scale).astype(self.dtype),
-            'B1': jnp.zeros(self.ff_dim, dtype=self.dtype),
-            'W2': (jax.random.normal(k2, (self.ff_dim, self.embedding_dim)) * residual_scale).astype(self.dtype),
-            'B2': jnp.zeros(self.embedding_dim, dtype=self.dtype)
-        }
 
     def get_params(self):
         """
-        Gets the parameters for each expert and returns as a dictionary
+        Gets the parameters for the MoE block.
 
         Returns:
             dict:
                 - router_W: Points to router weights
                 - router_B: Points to router biases
-                - expert_{i}_X: Points to W1, B1, W2, and B2
-                    (weights and biases for both base and residual layers) for all experts
+                - experts_W1: Stacked array for W1
+                - experts_B1: Stacked array for B1
+                - experts_W2: Stacked array for W2
+                - experts_B2: Stacked array for B2
         """
-        params = {
+        return {
             'router_W': self.router_W,
-            'router_B': self.router_B
+            'router_B': self.router_B,
+            'experts_W1': self.experts_W1,
+            'experts_B1': self.experts_B1,
+            'experts_W2': self.experts_W2,
+            'experts_B2': self.experts_B2
         }
-
-        for i, expert in enumerate(self.experts):
-            params[f'expert_{i}_W1'] = expert['W1']
-            params[f'expert_{i}_B1'] = expert['B1']
-            params[f'expert_{i}_W2'] = expert['W2']
-            params[f'expert_{i}_B2'] = expert['B2']
-
-        return params
 
     def set_params(
             self,
@@ -130,38 +107,12 @@ class MOE:
         self.router_W = params['router_W']
         self.router_B = params['router_B']
 
-        for i in range(self.num_experts):
-            self.experts[i] = {
-                'W1': params[f'expert_{i}_W1'],
-                'B1': params[f'expert_{i}_B1'],
-                'W2': params[f'expert_{i}_W2'],
-                'B2': params[f'expert_{i}_B2']
-            }
+        self.experts_W1 = params['experts_W1']
+        self.experts_B1 = params['experts_B1']
+        self.experts_W2 = params['experts_W2']
+        self.experts_B2 = params['experts_B2']
 
-    @staticmethod
-    def gelu(x:jnp.ndarray):
-        """
-        GELU activation function
 
-        Args:
-            x (jnp.ndarray): array of vectors to go through activation function (3D matrix)
-
-        Returns:
-            jnp.ndarray: activated layer from hidden layer
-        """
-        return 0.5 * x * (1+jnp.tanh(jnp.sqrt(2/jnp.pi) * (x + 0.044715 * x**3)))
-
-    @staticmethod
-    def relu(x):
-        """Basically gelu but simpler
-
-        Args:
-            x (jnp.ndarray): array of vectors to go through activation function (3D matrix)
-
-        Returns:
-            jnp.ndarray: activated layer from hidden layer
-        """
-        return jnp.maximum(0, x)
 
     @staticmethod
     @partial(jax.jit, static_argnums=(2,))
@@ -187,9 +138,9 @@ class MOE:
 
         # Activation
         if activation == 'gelu':
-            activated = MOE.gelu(hidden)
+            activated = jax.nn.gelu(hidden)
         else:
-            activated = MOE.relu(hidden)
+            activated = jax.nn.relu(hidden)
 
         # Second layer: transformations are applied to activated layer
         output = activated @ expert_params['W2'] + expert_params['B2']
@@ -244,19 +195,7 @@ class MOE:
         top_k_probs = top_k_probs / jnp.sum(top_k_probs, axis=-1, keepdims=True)
 
         # ======= 3: Expert processing (run tokens through experts) ========
-        output = jnp.zeros_like(x) # Init output
-
-        # Process each expert only on tokens that selected it
-        for i in range(num_experts):
-            # Get params
-            expert_params = {
-                'W1': params[f'expert_{i}_W1'],
-                'B1': params[f'expert_{i}_B1'],
-                'W2': params[f'expert_{i}_W2'],
-                'B2': params[f'expert_{i}_B2']
-            }
-
-            # Get routing weights for this expert (batch, seq_len)
+        def process_expert(i, w1, b1, w2, b2):
             expert_weights = jnp.where(
                 top_k_indices == i,
                 top_k_probs,
@@ -265,17 +204,29 @@ class MOE:
 
             # Mask to zero out tokens not using this expert (batch, seq_len, 1)
             expert_mask = (expert_weights > 0)[..., None]
-
-            # Zero out inputs for tokens not using this expert
-            # This reduces computation in matmuls (sparse patterns)
             masked_input = jnp.where(expert_mask, x, 0.0)
 
-            # Run expert (on masked input)
-            expert_out = MOE.expert_fwd(masked_input, expert_params, activation)
+            expert_params = {
+                'W1': w1,
+                'B1': b1,
+                'W2': w2,
+                'B2': b2
+            }
 
-            # Weight the output
-            weighted_out = expert_out * expert_weights[..., None]
-            output = output + weighted_out
+            expert_out = MOE.expert_fwd(masked_input, expert_params, activation)
+            return expert_out * expert_weights[..., None]
+
+        # Vmap over the experts dimension to execute all experts in parallel
+        all_expert_outputs = jax.vmap(process_expert)(
+            jnp.arange(num_experts),
+            params['experts_W1'],
+            params['experts_B1'],
+            params['experts_W2'],
+            params['experts_B2']
+        )
+        
+        # Sum outputs from all experts
+        output = jnp.sum(all_expert_outputs, axis=0)
 
         # ======= 4: Dropout =======
         if training and dropout > 0.0:

@@ -21,7 +21,6 @@ import jax.numpy as jnp # pylint: disable=no-member
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from src.embeddings.embeddings import EmbeddingLayer
-from src.training.loss_function import CrossEntropyLoss
 
 class FeedForward():
     """
@@ -58,8 +57,7 @@ class FeedForward():
 
         k1, k2 = jax.random.split(self.key)
 
-        self.cross_entropy = CrossEntropyLoss()
-        self.loss_fn = self.cross_entropy.fwd
+
 
         # Layers with proper initialization
         scale = 0.02
@@ -73,30 +71,7 @@ class FeedForward():
         # Weight second layer with residual scaling
         self.B2 = jnp.zeros(self.embedding_dim, dtype=self.dtype) # Bias second layer
 
-    @staticmethod
-    def gelu(x):
-        """
-        gelu activation function
 
-        Args:
-            x (jnp.ndarray): array of vectors to go through activation function (3D matrix)
-
-        Returns:
-            jnp.ndarray: activated layer from hidden layer
-        """
-        return 0.5 * x * (1+jnp.tanh(jnp.sqrt(2/jnp.pi) * (x + 0.044715 * x**3)))
-
-    @staticmethod
-    def relu(x):
-        """Basically gelu but simpler
-
-        Args:
-            x (jnp.ndarray): array of vectors to go through activation function (3D matrix)
-
-        Returns:
-            jnp.ndarray: activated layer from hidden layer
-        """
-        return jnp.maximum(0, x)
 
     @staticmethod
     @partial(jax.jit, static_argnames=('dropout', 'training'))
@@ -121,7 +96,7 @@ class FeedForward():
             jnp.ndarray: Output array of shape (batch_size, seq_len, embedding_dim)
         """
         hidden = x @ params['W1'] + params['B1']
-        activated = FeedForward.gelu(hidden)
+        activated = jax.nn.gelu(hidden)
         output = activated @ params['W2'] + params['B2']
 
         if training and dropout > 0.0 and rng_key is not None:
@@ -145,7 +120,7 @@ class FeedForward():
             jnp.ndarray: Output array of shape (batch_size, embedding_dim).
         """
         hidden = x @ self.W1 + self.B1
-        activated = self.gelu(hidden)
+        activated = jax.nn.gelu(hidden)
         output = activated @ self.W2 + self.B2
         return output
 
@@ -166,7 +141,7 @@ class FeedForward():
         """
         def loss_fn(W1, B1, W2, B2):
             hidden = x @ W1 + B1
-            activated = self.gelu(hidden)
+            activated = jax.nn.gelu(hidden)
             logits = activated @ W2 + B2
             return self.loss_fn(logits, target_ids)
 

@@ -17,6 +17,7 @@ from functools import partial
 
 import jax # pylint: disable=no-member
 import jax.numpy as jnp # pylint: disable=no-member
+from jax.nn import dot_product_attention
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from src.embeddings.embeddings import EmbeddingLayer
@@ -112,11 +113,10 @@ class MultiHeadAttention:
         K = K.transpose(0,2,1,3)
         V = V.transpose(0,2,1,3)
 
-        # Use JAX's optimized dot_product_attention
-        from jax.nn import dot_product_attention
+        # Compute scale as Python float to avoid traced computation
+        scale = float(1.0 / (head_dim ** 0.5))
 
-        # dot_product_attention handles causal masking internally with is_causal flag
-        # No need to pass explicit mask for causal attention
+        # Use JAX's optimized dot_product_attention with causal masking
         attn_output = dot_product_attention(
             query=Q,
             key=K,
@@ -124,7 +124,7 @@ class MultiHeadAttention:
             bias=None,
             mask=None,  # Let is_causal handle masking
             is_causal=True,  # Enable causal masking internally
-            scale=1.0 / jnp.sqrt(head_dim),
+            scale=scale,
         )
 
         # Apply dropout if needed (dot_product_attention doesn't handle dropout)
