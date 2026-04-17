@@ -237,25 +237,50 @@ Last Modified: December 6, 2025 23:48
 
 ```mermaid
 flowchart TD
-    A[Input Text] --> B[Tokenizer: tokenizer.pkl]
-    B --> C[Embeddings + Positional Encodings]
-    C --> D[Stacked Transformer Blocks: multi head attention + feed forward]
-    D --> E[Output Layer]
-    E --> F[Predicted Tokens → Decoded Text]
+  A[Input Text] --> B[Tokenizer]
+  B --> C[Token IDs]
+  C --> D[Text Embeddings + Positional Encoding]
 
-    %% Training loop connections (dashed lines)
-    B -.-> G[Training: prepare batches]
-    E -.-> H[loss_function.py: compute loss]
-    H -.-> I[Backpropagation: update parameters in embeddings, transformer block, and output layer]
+  J[Input Image Optional] --> K[Patch Embedding]
+  K --> L[ViT Encoder Stack with Self-Attention + MoE]
+  L --> M[Image Embeddings]
 
-    %% Node colors
-    style A fill:#C19A00,stroke:#8B7500,stroke-width:2px
-    style B fill:#C19A00,stroke:#8B7500,stroke-width:2px
-    style C fill:#1E3A8A,stroke:#1E40AF,stroke-width:2px
-    style D fill:#15803D,stroke:#166534,stroke-width:2px
-    style E fill:#B91C1C,stroke:#991B1B,stroke-width:2px
-    style F fill:#C19A00,stroke:#8B7500,stroke-width:2px
-    style G fill:#6B21A8,stroke:#4C1D95,stroke-width:1px,stroke-dasharray: 5 5
-    style H fill:#6B21A8,stroke:#4C1D95,stroke-width:1px,stroke-dasharray: 5 5
-    style I fill:#6B21A8,stroke:#4C1D95,stroke-width:1px,stroke-dasharray: 5 5
+  D --> E[Decoder Transformer Stack]
+  M --> E
+  E --> N[Per Block: Self-Attention -> Cross-Attention to Image -> MoE or FFN]
+  N --> O[Final LayerNorm + Output Projection]
+  O --> P[Next-Token Logits]
+  P --> Q[Sampling Decoding]
+  Q --> R[Predicted Tokens -> Text]
+
+  %% Training loop connections (dashed lines)
+  C -.-> S[Batching + Targets]
+  P -.-> T[Cross-Entropy Loss]
+  N -.-> U[MoE Load-Balance Aux Loss]
+  T -.-> V[Total Loss = CE + load_balance_coef * aux]
+  U -.-> V
+  V -.-> W[Backprop + AdamW updates]
+  W -.-> X[Update Embedding, Decoder, ViT, Cross-Attention, Output]
+
+  %% Node colors
+  style A fill:#C19A00,stroke:#8B7500,stroke-width:2px
+  style B fill:#C19A00,stroke:#8B7500,stroke-width:2px
+  style C fill:#C19A00,stroke:#8B7500,stroke-width:2px
+  style D fill:#1E3A8A,stroke:#1E40AF,stroke-width:2px
+  style J fill:#0E7490,stroke:#155E75,stroke-width:2px
+  style K fill:#0E7490,stroke:#155E75,stroke-width:2px
+  style L fill:#0E7490,stroke:#155E75,stroke-width:2px
+  style M fill:#0E7490,stroke:#155E75,stroke-width:2px
+  style E fill:#15803D,stroke:#166534,stroke-width:2px
+  style N fill:#15803D,stroke:#166534,stroke-width:2px
+  style O fill:#B91C1C,stroke:#991B1B,stroke-width:2px
+  style P fill:#B91C1C,stroke:#991B1B,stroke-width:2px
+  style Q fill:#C19A00,stroke:#8B7500,stroke-width:2px
+  style R fill:#C19A00,stroke:#8B7500,stroke-width:2px
+  style S fill:#6B21A8,stroke:#4C1D95,stroke-width:1px,stroke-dasharray: 5 5
+  style T fill:#6B21A8,stroke:#4C1D95,stroke-width:1px,stroke-dasharray: 5 5
+  style U fill:#6B21A8,stroke:#4C1D95,stroke-width:1px,stroke-dasharray: 5 5
+  style V fill:#6B21A8,stroke:#4C1D95,stroke-width:1px,stroke-dasharray: 5 5
+  style W fill:#6B21A8,stroke:#4C1D95,stroke-width:1px,stroke-dasharray: 5 5
+  style X fill:#6B21A8,stroke:#4C1D95,stroke-width:1px,stroke-dasharray: 5 5
 ```
