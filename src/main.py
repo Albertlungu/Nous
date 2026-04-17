@@ -61,31 +61,36 @@ def train():
 
     from src.data.jax_streaming_loader import JAXStreamingLoader
 
+    # Training configuration
+    batch_size = 32  # Conservative for 2x RTX 5090 32GB (50% reduction)
+    seq_length = 1024  # Reduced from 1536 for smaller model
+    target_tokens = 2_400_000_000  # 2.4B tokens
+
     streaming_loader = JAXStreamingLoader(
         repo_id="albertlungu/final-nous-corpus",
         filename="corpus.txt.zst",
         tokenizer_name="cl100k_base",
-        batch_size=8,
-        seq_length=1536,
+        batch_size=batch_size,
+        seq_length=seq_length,
         shuffle=True,  # Shuffle to mix code, math, and text
     )
 
     trainer = Trainer(
         tokenizer=tokenizer,
-        lr=3e-4,
-        num_blocks=16,  # Reduced from 24 for 700M model
-        num_heads=16,
-        embedding_dim=1024,
-        max_seq_length=1536,
-        use_moe=True,
+        lr=6e-4,  # GPT-2 style learning rate
+        num_blocks=16,  # Increased to 16 for ~200M params without MoE
+        num_heads=12,
+        embedding_dim=768,
+        max_seq_length=1024,
+        use_moe=False,  # DISABLED - MoE is broken
         num_experts=4,
         experts_per_token=2,
         dropout=0.0,
-        use_lr_schedule=True,
-        warmup_steps=2000,
-        min_lr=3e-5,
+        use_lr_schedule=True,  # Warmup + cosine decay within epoch
+        warmup_steps=500,
+        min_lr=6e-5,
         load_balance_coef=0.01,
-        use_multi_gpu=False,
+        use_multi_gpu=True,
         gradient_accumulation_steps=1,
     )
 
@@ -98,19 +103,25 @@ def train():
     print("Training model.")
     train_time = time.time()
 
-    # Train with automatic checkpointing
-    # Target: 1.9 billion tokens for 700M model ($50 budget)
-    # batch_size=8, seq_length=1536 = 12,288 tokens/batch
-    # 1.9B tokens / 12,288 = 154,622 batches
-    max_batches = 154_622
-    print(f"\nTraining target: {max_batches:,} batches (~1.9B tokens)")
-    print(f"Budget: $50 at $1.5/hour = 33.3 hours")
-    print(f"Estimated time at 0.39s/batch: {max_batches * 0.39 / 3600:.1f} hours (${max_batches * 0.39 / 3600 * 1.5:.2f} cost)\n")
+    # Calculate batches needed for target tokens
+    tokens_per_batch = batch_size * seq_length
+    max_batches = int(target_tokens / tokens_per_batch)
+    actual_tokens = max_batches * tokens_per_batch
+
+    print(f"\nTraining configuration:")
+    print(f"  Batch size: {batch_size}")
+    print(f"  Sequence length: {seq_length}")
+    print(f"  Tokens per batch: {tokens_per_batch:,}")
+    print(f"  Target tokens: {target_tokens:,} ({target_tokens/1e9:.1f}B)")
+    print(f"  Batches needed: {max_batches:,}")
+    print(f"  Actual tokens: {actual_tokens:,} ({actual_tokens/1e9:.2f}B)")
+    print(f"  Dataset: 221.62 GB compressed (~174.9B tokens available)")
+    print(f"  Estimated time at 3.14 it/s: {max_batches / 3.14 / 3600:.1f} hours\n")
 
     trainer.train(
         data_loader=streaming_loader,
         epochs=1,
-        checkpoint_path="artifacts/models/nous_700m_1.9b_tokens.pkl",
+        checkpoint_path="artifacts/models/nous_200m_no_moe_2400m_tokens.pkl",
         save_every=1,
         prompt="The meaning of life is",
         max_batches=max_batches,

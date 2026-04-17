@@ -115,7 +115,7 @@ class Trainer:
         self.dropout = dropout
         self.min_lr = min_lr
 
-        # Multi-GPU setup
+        # Multi-GPU setup with NamedSharding (modern JAX approach)
         self.use_multi_gpu = use_multi_gpu
         self.devices = jax.devices()
         self.num_devices = len(self.devices)
@@ -125,9 +125,31 @@ class Trainer:
             print(f"Multi-GPU enabled: Using {self.num_devices} devices")
             print(f"Devices: {self.devices}")
             print(f"Gradient accumulation steps: {self.gradient_accumulation_steps}")
+
+            # Create mesh for data parallelism using NamedSharding
+            from jax.sharding import Mesh, NamedSharding
+            from jax.sharding import PartitionSpec as P
+
+            self.mesh = Mesh(np.array(self.devices), ("data",))
+            # Shard along batch dimension for data parallelism
+            self.data_sharding = NamedSharding(
+                self.mesh,
+                P(
+                    "data",
+                ),
+            )
+            # Replicate parameters across devices
+            self.replicated_sharding = NamedSharding(self.mesh, P())
         else:
             print(f"Single GPU mode: Using {self.devices[0]}")
             self.use_multi_gpu = False
+            self.mesh = None
+            self.data_sharding = None
+            self.replicated_sharding = None
+
+        # Parameter caching to avoid repeated dictionary construction
+        self._cached_params = None
+        self._params_dirty = True
 
         # Validate that embedding_dim is divisible by num_heads
         if embedding_dim % num_heads != 0:
@@ -153,6 +175,7 @@ class Trainer:
         self.num_experts = num_experts
         self.experts_per_token = experts_per_token
         self.lbc = load_balance_coef
+        self.ff_dim = 4 * embedding_dim  # Store ff_dim for summary
 
         self.transformer_stack = TransformerStack(
             self.embedding_layer,
@@ -194,19 +217,22 @@ class Trainer:
 
         # Initialize optimizer state (Adam moments) using pytree structure
         # This avoids initialization overhead on first batch
-        initial_params = self._flatten_params()
-        self._adam_m = tree.tree_map(lambda p: jnp.zeros_like(p), initial_params)
-        self._adam_v = tree.tree_map(lambda p: jnp.zeros_like(p), initial_params)
+        self.params_pytree = self._flatten_params()
+        self._adam_m = tree.tree_map(lambda p: jnp.zeros_like(p), self.params_pytree)
+        self._adam_v = tree.tree_map(lambda p: jnp.zeros_like(p), self.params_pytree)
 
-        # Create pmap functions for multi-GPU if enabled
+        # Delete Python block objects to free ~1.4GB of duplicated weight memory
+        # The flattened params in params_pytree are now the source of truth
+        del self.transformer_stack.blocks
+        self.transformer_stack.blocks = []
+
+        # For multi-GPU with NamedSharding, replicate params once
         if self.use_multi_gpu:
-            self._compiled_loss_and_grad_pmap = self._create_pmap_loss_fn()
-            self._compiled_update_pmap = self._create_pmap_update_fn()
-
-            # Replicate parameters across devices
-            self._replicated_params = None
-            self._replicated_adam_m = None
-            self._replicated_adam_v = None
+            self.params_pytree = jax.device_put(
+                self.params_pytree, self.replicated_sharding
+            )
+            self._adam_m = jax.device_put(self._adam_m, self.replicated_sharding)
+            self._adam_v = jax.device_put(self._adam_v, self.replicated_sharding)
 
         # Capture static values so JAX treats them as concrete during tracing
         num_heads = self.num_heads
@@ -214,6 +240,7 @@ class Trainer:
         embedding_dim = self.embedding_layer.embedding_dim
         num_experts = self.num_experts
         experts_per_token = self.experts_per_token
+        dropout = self.dropout
 
         @jax.jit
         def fwd_jit(
@@ -244,33 +271,38 @@ class Trainer:
             # Use the closed-over static values
             num_heads_local = num_heads
             head_dim_local = head_dim
-            embedding_dim_local = embedding_dim
 
-            total_aux_loss = 0.0
-            for i in range(len(stack_params)):
-                block_params = stack_params[i]
-                current, aux_loss = TransformerBlock.fwd(
+            def scan_fn(carry, block_params):
+                c, total_aux = carry
+                next_c, aux = TransformerBlock.fwd(
                     block_params,
-                    current,
+                    c,
                     num_heads_local,
                     head_dim_local,
-                    embedding_dim_local,
+                    embedding_dim,
                     num_experts,
                     experts_per_token,
+                    dropout,
+                    training=True,
+                    rng_key=None,
                 )
-                total_aux_loss += aux_loss
+                return (next_c, total_aux + aux), None
+
+            (current, total_aux_loss), _ = jax.lax.scan(
+                scan_fn, (current, 0.0), stack_params
+            )
 
             # Apply final LayerNorm after all transformer blocks
             current = TransformerBlock.layer_norm(
                 current, final_ln_params["gamma"], final_ln_params["beta"]
             )
 
-            logits = OutputLayer.fwd(output_params, current)
+            logits = OutputLayer.fwd(output_params, current, embed_params["embeddings"])
 
             return current, logits, total_aux_loss
 
         # Create a bound wrapper (no-op wrapper — fwd_jit already closes over static values)
-        self._fwd = fwd_jit
+        self._compiled_fwd = fwd_jit
 
     def _create_jit_loss_fn(self):
         """
@@ -312,24 +344,39 @@ class Trainer:
                 current = embeddings
                 total_aux_loss = 0.0
 
-                # Use gradient checkpointing to reduce memory
-                for i in range(num_blocks):
-                    block_params = stack_params[i]
+                def scan_fn(carry, block_params):
+                    c, total_aux = carry
 
-                    def checkpointed_block(c, bp=block_params):
+                    @jax.checkpoint
+                    def cp_block(active_c, bp):
                         return TransformerBlock.fwd(
-                            bp, c, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
+                            bp,
+                            active_c,
+                            num_heads,
+                            head_dim,
+                            embedding_dim,
+                            num_experts,
+                            experts_per_token,
+                            dropout,
+                            training=True,
+                            rng_key=None,
                         )
 
-                    current, aux_loss = jax.checkpoint(checkpointed_block)(current)
-                    total_aux_loss += aux_loss
+                    next_c, aux = cp_block(c, block_params)
+                    return (next_c, total_aux + aux), None
+
+                (current, total_aux_loss), _ = jax.lax.scan(
+                    scan_fn, (current, 0.0), stack_params
+                )
 
                 # Apply final LayerNorm after all transformer blocks
                 current = TransformerBlock.layer_norm(
                     current, final_ln_params["gamma"], final_ln_params["beta"]
                 )
 
-                logits = OutputLayer.fwd(output_params, current)
+                logits = OutputLayer.fwd(
+                    output_params, current, embed_params["embeddings"]
+                )
                 # Ignore padding (0) during loss calculation
                 # Use ignore_index (scalar) instead of ignore_indices (list) for JIT compatibility
                 ce_loss = CrossEntropyLoss.fwd(
@@ -347,7 +394,16 @@ class Trainer:
             loss, grads = jax.value_and_grad(loss_fn, argnums=(0, 1, 2, 3))(
                 embed_params, stack_params, output_params, final_ln_params
             )
-            return loss, grads
+
+            # Clip gradients inside JIT boundary to avoid host-device sync
+            global_norm = jnp.sqrt(
+                sum(jnp.sum(jnp.square(g)) for g in jax.tree_util.tree_leaves(grads))
+            )
+            max_norm = 1.0
+            clip_coef = jnp.minimum(1.0, max_norm / (global_norm + 1e-6))
+            grads_clipped = jax.tree_util.tree_map(lambda g: g * clip_coef, grads)
+
+            return loss, grads_clipped
 
         return loss_and_grad_fn
 
@@ -358,12 +414,15 @@ class Trainer:
         """
         beta1 = self.optimizer.beta1
         beta2 = self.optimizer.beta2
-        lr = self.optimizer.lr
         epsilon = self.optimizer.epsilon
 
         @jax.jit
         def update_fn(
-            params_pytree: dict, grads_pytree: dict, optimizer_state: dict, t
+            params_pytree: dict,
+            grads_pytree: dict,
+            optimizer_state: dict,
+            t,
+            lr,
         ):
             """
             JIT-compiled Adam update using pytrees (works on nested structures).
@@ -418,120 +477,16 @@ class Trainer:
             # Now transposed is a 3-tuple of pytrees
             updated_params, updated_m, updated_v = transposed
 
+            # Clip b_out inside JIT boundary to avoid host-device sync
+            # params_pytree is (embed_params, stack_params, output_params, final_ln_params)
+            # Note: output_params only contains 'b_out' (weight tying with embeddings)
+            embed_p, stack_p, output_p, final_ln_p = updated_params
+            output_p_clipped = {"b_out": jnp.clip(output_p["b_out"], -10.0, 10.0)}
+            updated_params = (embed_p, stack_p, output_p_clipped, final_ln_p)
+
             return updated_params, (updated_m, updated_v)
 
         return update_fn
-
-    def _create_pmap_loss_fn(self):
-        """
-        Create a pmap-compiled function for multi-GPU loss and gradient computation.
-        Data is split across devices, gradients are computed per-device, then averaged.
-        """
-        num_heads = self.num_heads
-        head_dim = self.embedding_layer.embedding_dim // self.num_heads
-        embedding_dim = self.embedding_layer.embedding_dim
-        num_blocks = self.num_blocks
-        num_experts = self.num_experts
-        experts_per_token = self.experts_per_token
-        lbc = self.lbc
-        eos_token_id = self.tokenizer.eos_token_id
-
-        @jax.pmap
-        def loss_and_grad_fn_pmap(
-            embed_params: dict,
-            stack_params: dict,
-            output_params: dict,
-            final_ln_params: dict,
-            token_ids: jnp.ndarray,
-            targets: jnp.ndarray,
-        ):
-            """pmap-compiled loss and gradient computation for multi-GPU."""
-
-            def loss_fn(
-                embed_params: dict,
-                stack_params: dict,
-                output_params: dict,
-                final_ln_params: dict,
-            ):
-                embeddings, _ = EmbeddingLayer.embedding_fwd(embed_params, token_ids)
-
-                current = embeddings
-                total_aux_loss = 0.0
-
-                # Use gradient checkpointing to reduce memory
-                for i in range(num_blocks):
-                    block_params = stack_params[i]
-
-                    def checkpointed_block(c, bp=block_params):
-                        return TransformerBlock.fwd(
-                            bp, c, num_heads, head_dim, embedding_dim, num_experts, experts_per_token
-                        )
-
-                    current, aux_loss = jax.checkpoint(checkpointed_block)(current)
-                    total_aux_loss += aux_loss
-
-                current = TransformerBlock.layer_norm(
-                    current, final_ln_params["gamma"], final_ln_params["beta"]
-                )
-
-                logits = OutputLayer.fwd(output_params, current)
-                ce_loss = CrossEntropyLoss.fwd(
-                    logits,
-                    targets,
-                    ignore_indices=[],  # Empty list, using ignore_index instead
-                    ignore_index=0,
-                    eos_weight=1.0,
-                    eos_token_id=eos_token_id,
-                )
-
-                total_loss = ce_loss + lbc * total_aux_loss
-                return total_loss
-
-            loss, grads = jax.value_and_grad(loss_fn, argnums=(0, 1, 2, 3))(
-                embed_params, stack_params, output_params, final_ln_params
-            )
-            return loss, grads
-
-        return loss_and_grad_fn_pmap
-
-    def _create_pmap_update_fn(self):
-        """
-        Create a pmap-compiled function for multi-GPU parameter updates.
-        """
-        beta1 = self.optimizer.beta1
-        beta2 = self.optimizer.beta2
-        lr = self.optimizer.lr
-        epsilon = self.optimizer.epsilon
-
-        @jax.pmap
-        def update_fn_pmap(
-            params_pytree: dict, grads_pytree: dict, optimizer_state: dict, t
-        ):
-            """pmap-compiled Adam update for multi-GPU."""
-            m_pytree, v_pytree = optimizer_state
-
-            def adam_update_leaf(param, grad, m, v):
-                m_new = beta1 * m + (1 - beta1) * grad
-                v_new = beta2 * v + (1 - beta2) * (grad ** 2)
-                m_hat = m_new / (1 - beta1 ** t)
-                v_hat = v_new / (1 - beta2 ** t)
-                param_new = param - lr * m_hat / (jnp.sqrt(v_hat) + epsilon)
-                return param_new, m_new, v_new
-
-            result_pytree = tree.tree_map(
-                adam_update_leaf, params_pytree, grads_pytree, m_pytree, v_pytree
-            )
-
-            from jax.tree_util import tree_transpose, tree_structure
-
-            outer_treedef = tree_structure(params_pytree)
-            inner_treedef = tree_structure((0, 0, 0))
-            transposed = tree_transpose(outer_treedef, inner_treedef, result_pytree)
-            updated_params, updated_m, updated_v = transposed
-
-            return updated_params, (updated_m, updated_v)
-
-        return update_fn_pmap
 
     def _flatten_params(self):
         """
@@ -541,14 +496,18 @@ class Trainer:
         Returns:
             tuple: Nested tuple of all model parameters (embeddings, stack, output)
         """
+        stack_list = [block.get_params() for block in self.transformer_stack.blocks]
+        # Stack parameter trees into a batched representation
+        stack_params = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *stack_list)
         return (
             self.embedding_layer.get_params(),
-            [block.get_params() for block in self.transformer_stack.blocks],
+            stack_params,
             self.output_layer.get_params(),
             {"gamma": self.final_gamma, "beta": self.final_beta},
         )
 
     def _unflatten_params(self, params):
+        return
         """
         Set all parameters from a pytree (tuple structure).
 
@@ -594,7 +553,7 @@ class Trainer:
         self.final_beta = final_ln_dict["beta"]
 
     def fwd(self, *args, **kwargs):
-        return self._fwd(*args, **kwargs)
+        raise DeprecationWarning("Uncompiled forward removed for memory efficiency")
 
     def compute_loss_and_grads(self, token_ids: jnp.ndarray, targets: jnp.ndarray):
         """
@@ -607,10 +566,8 @@ class Trainer:
         Returns:
             tuple: (loss, all_grads)
         """
-        embed_params = self.embedding_layer.get_params()
-        stack_params = [block.get_params() for block in self.transformer_stack.blocks]
-        output_params = self.output_layer.get_params()
-        final_ln_params = {"gamma": self.final_gamma, "beta": self.final_beta}
+        # Use the stored self.params_pytree directly instead of rebuilding it every time
+        embed_params, stack_params, output_params, final_ln_params = self.params_pytree
 
         # Use the pre-compiled JIT function
         loss, grads = self._compiled_loss_and_grad(
@@ -641,39 +598,49 @@ class Trainer:
                           Format: {'embeddings': dict, 'stack': list, 'output': dict}
         """
         # Get current parameters as pytree
-        params_pytree = self._flatten_params()
+        params_pytree = self.params_pytree
 
         # Convert grads dict to tuple structure matching params_pytree
         grads_pytree = (
-            grads[
-                "embeddings"
-            ],  # This is a dict {'embeddings': ..., 'positional_encodings': ...}
-            grads["stack"],  # This is a list of dicts
-            grads["output"],  # This is a dict
+            grads["embeddings"],
+            grads["stack"],
+            grads["output"],
             grads["final_ln"],
         )
 
         # Increment timestep
         self.optimizer.t += 1
 
-        # Run JIT-compiled update (all parameter updates happen in one JIT call)
-        optimizer_state = (self._adam_m, self._adam_v)
+        # Compute LR for this exact step before entering JIT update.
+        if self.use_lr_schedule:
+            step_lr = self.optimizer.get_lr()
+        else:
+            step_lr = self.optimizer.lr
 
+        # Run JIT-compiled update (all parameter updates happen in one JIT call)
+        # With NamedSharding, we use the same JIT function for both single and multi-GPU
+        optimizer_state = (self._adam_m, self._adam_v)
         updated_params, new_state = self._compiled_update(
-            params_pytree, grads_pytree, optimizer_state, self.optimizer.t
+            params_pytree,
+            grads_pytree,
+            optimizer_state,
+            self.optimizer.t,
+            step_lr,
         )
 
+        # Keep LR visible in Python state for logging/checkpoint metadata.
+        self.optimizer.lr = float(step_lr)
+
         # Update optimizer state
-        self._adam_m, self._adam_v = new_state
-
-        # Unpack updated parameters back to model
-        self._unflatten_params(updated_params)
-        self.output_layer.W_out = (
-            self.embedding_layer.embeddings.T
-        )  # WEIGHT TYING WAS MESSING UP MY LOSS ASASDJASGAKJDHASAJKDH
-        # Anyways force weight tying by making W_out ALWAYS = embeddings.T
-
-        self.output_layer.b_out = jnp.clip(self.output_layer.b_out, -10.0, 10.0)
+        if getattr(self, "use_multi_gpu", False):
+            self._adam_m = jax.device_put(new_state[0], self.replicated_sharding)
+            self._adam_v = jax.device_put(new_state[1], self.replicated_sharding)
+            self.params_pytree = jax.device_put(
+                updated_params, self.replicated_sharding
+            )
+        else:
+            self._adam_m, self._adam_v = new_state
+            self.params_pytree = updated_params
 
     def _replicate_params_to_devices(self):
         """Replicate parameters across all devices for pmap."""
@@ -715,6 +682,34 @@ class Trainer:
 
         # Reshape: (batch_size, seq_len) -> (num_devices, per_device_batch, seq_len)
         return batch.reshape(self.num_devices, per_device_batch, seq_len)
+
+    def _cleanup_old_checkpoints(self, base_checkpoint_name: str, keep_last: int = 2):
+        """
+        Remove old checkpoints, keeping only the most recent N checkpoints.
+
+        Args:
+            base_checkpoint_name (str): Base name pattern for checkpoints
+            keep_last (int): Number of most recent checkpoints to keep
+        """
+        import glob
+
+        # Find all checkpoints matching the pattern
+        checkpoint_pattern = f"{base_checkpoint_name}_batch*.pkl"
+        checkpoints = glob.glob(checkpoint_pattern)
+
+        if len(checkpoints) <= keep_last:
+            return
+
+        # Sort by modification time (newest first)
+        checkpoints.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+
+        # Delete old checkpoints beyond keep_last
+        for old_checkpoint in checkpoints[keep_last:]:
+            try:
+                os.remove(old_checkpoint)
+                print(f"Removed old checkpoint: {old_checkpoint}")
+            except OSError as e:
+                print(f"Warning: Could not remove {old_checkpoint}: {e}")
 
     def _get_timestamped_checkpoint_path(self, base_path: str):
         """
@@ -778,14 +773,19 @@ class Trainer:
         # Use max_batches for progress bar if specified
         if max_batches:
             progress_total = max_batches
-            print(f"Training for {max_batches:,} batches (estimated from full corpus: {estimated_batches:,})")
+            print(
+                f"Training for {max_batches:,} batches (estimated from full corpus: {estimated_batches:,})"
+            )
+            # Use actual training batches for LR schedule, not full corpus estimate
+            actual_training_batches = max_batches
         else:
             progress_total = estimated_batches
             print(f"Estimated {estimated_batches:,} batches per epoch")
+            actual_training_batches = estimated_batches
 
         # Configure learning rate schedule if enabled
         if self.use_lr_schedule:
-            new_steps = epochs * estimated_batches
+            new_steps = epochs * actual_training_batches
             current_step = self.optimizer.t
             total_steps = current_step + new_steps
             self.optimizer.warmup_steps = self.warmup_steps
@@ -807,6 +807,7 @@ class Trainer:
             for epoch in range(epochs):
                 total_loss = 0
                 total_lr = 0
+                lr_steps = 0
                 batch_count = 0
                 accumulated_grads = None
                 accumulation_count = 0
@@ -828,7 +829,9 @@ class Trainer:
 
                     # Stop if max_batches reached
                     if max_batches and batch_count > max_batches:
-                        print(f"\nReached max_batches limit ({max_batches:,}). Stopping training.")
+                        print(
+                            f"\nReached max_batches limit ({max_batches:,}). Stopping training."
+                        )
                         break
 
                     start_time = t.time()
@@ -841,94 +844,25 @@ class Trainer:
                     target_tokens = batch_jax[:, 1:]
 
                     if self.use_multi_gpu:
-                        # Multi-GPU path: split batch across devices
-                        try:
-                            input_tokens_split = self._reshape_batch_for_devices(
-                                np.array(input_tokens)
+                        # Multi-GPU path with NamedSharding: shard data, replicate params
+                        # Check if batch is divisible by num_devices
+                        if input_tokens.shape[0] % self.num_devices != 0:
+                            print(
+                                f"\nWarning: Batch size {input_tokens.shape[0]} not divisible by {self.num_devices} devices, skipping batch"
                             )
-                            target_tokens_split = self._reshape_batch_for_devices(
-                                np.array(target_tokens)
-                            )
+                            continue
 
-                            # Convert to JAX arrays
-                            input_tokens_split = jnp.array(
-                                input_tokens_split, dtype=jnp.int32
-                            )
-                            target_tokens_split = jnp.array(
-                                target_tokens_split, dtype=jnp.int32
-                            )
+                        # Shard input/target tokens along batch dimension
+                        input_tokens = jax.device_put(input_tokens, self.data_sharding)
+                        target_tokens = jax.device_put(
+                            target_tokens, self.data_sharding
+                        )
 
-                            # Get current parameters and replicate across devices
-                            # Note: pmap requires all inputs to have device dimension for data parallelism
-                            embed_params = self.embedding_layer.get_params()
-                            stack_params = [
-                                block.get_params()
-                                for block in self.transformer_stack.blocks
-                            ]
-                            output_params = self.output_layer.get_params()
-                            final_ln_params = {
-                                "gamma": self.final_gamma,
-                                "beta": self.final_beta,
-                            }
-
-                            # Replicate params across devices for pmap
-                            replicated_embed = tree.tree_map(
-                                lambda p: jnp.stack([p] * self.num_devices),
-                                embed_params,
-                            )
-                            replicated_stack = tree.tree_map(
-                                lambda p: jnp.stack([p] * self.num_devices),
-                                stack_params,
-                            )
-                            replicated_output = tree.tree_map(
-                                lambda p: jnp.stack([p] * self.num_devices),
-                                output_params,
-                            )
-                            replicated_final_ln = tree.tree_map(
-                                lambda p: jnp.stack([p] * self.num_devices),
-                                final_ln_params,
-                            )
-
-                            losses, grads_tuple = self._compiled_loss_and_grad_pmap(
-                                replicated_embed,
-                                replicated_stack,
-                                replicated_output,
-                                replicated_final_ln,
-                                input_tokens_split,
-                                target_tokens_split,
-                            )
-
-                            # Average loss across devices
-                            loss = jnp.mean(losses)
-
-                            # Average gradients across devices
-                            embed_grads, stack_grads, output_grads, final_ln_grads = (
-                                grads_tuple
-                            )
-                            embed_grads = tree.tree_map(lambda g: jnp.mean(g, axis=0), embed_grads)
-                            stack_grads = tree.tree_map(lambda g: jnp.mean(g, axis=0), stack_grads)
-                            output_grads = tree.tree_map(
-                                lambda g: jnp.mean(g, axis=0), output_grads
-                            )
-                            final_ln_grads = tree.tree_map(
-                                lambda g: jnp.mean(g, axis=0), final_ln_grads
-                            )
-
-                            grads = {
-                                "embeddings": embed_grads,
-                                "stack": stack_grads,
-                                "output": output_grads,
-                                "final_ln": final_ln_grads,
-                            }
-
-                        except ValueError as e:
-                            if "must be divisible" in str(e):
-                                print(
-                                    f"\nWarning: Batch size not divisible by {self.num_devices} devices, skipping batch"
-                                )
-                                continue
-                            else:
-                                raise
+                        # Compute loss and gradients (JAX handles sharding automatically)
+                        # Params are already replicated from __init__
+                        loss, grads = self.compute_loss_and_grads(
+                            input_tokens, target_tokens
+                        )
 
                     else:
                         # Single GPU path
@@ -936,33 +870,7 @@ class Trainer:
                             input_tokens, target_tokens
                         )
 
-                    grads_pytree = (
-                        grads["embeddings"],
-                        grads["stack"],
-                        grads["output"],
-                        grads["final_ln"],
-                    )
-
-                    global_norm = jnp.sqrt(
-                        sum(
-                            jnp.sum(jnp.square(g))
-                            for g in jax.tree_util.tree_leaves(grads_pytree)
-                        )
-                    )
-
-                    max_norm = 1.0
-                    clip_coef = jnp.minimum(1.0, max_norm / (global_norm + 1e-6))
-
-                    grads_pytree_clipped = jax.tree_util.tree_map(
-                        lambda g: g * clip_coef, grads_pytree
-                    )
-
-                    grads = {
-                        "embeddings": grads_pytree_clipped[0],
-                        "stack": grads_pytree_clipped[1],
-                        "output": grads_pytree_clipped[2],
-                        "final_ln": grads_pytree_clipped[3],
-                    }
+                    # Gradient clipping is now done inside the JIT boundary
 
                     # Gradient accumulation
                     if accumulated_grads is None:
@@ -980,19 +888,16 @@ class Trainer:
                     if accumulation_count >= self.gradient_accumulation_steps:
                         # Average accumulated gradients
                         averaged_grads = tree.tree_map(
-                            lambda g: g / self.gradient_accumulation_steps, accumulated_grads
+                            lambda g: g / self.gradient_accumulation_steps,
+                            accumulated_grads,
                         )
 
                         # Update parameters
                         self.update_params(averaged_grads)
 
-                        # Update learning rate AFTER optimizer step
-                        if self.use_lr_schedule:
-                            current_lr = self.optimizer.get_lr()
-                            self.optimizer.lr = current_lr
-                            total_lr += current_lr
-                        else:
-                            total_lr += self.optimizer.lr
+                        # Track LR used by optimizer step.
+                        total_lr += self.optimizer.lr
+                        lr_steps += 1
 
                         # Reset accumulation
                         accumulated_grads = None
@@ -1002,12 +907,18 @@ class Trainer:
                     # print(f"  Batch complete in {batch_time:.2f}s")
 
                     # Intermittent generation during training (every N batches)
-                    generation_interval = max(100, progress_total // 20)  # 20 checks per epoch, min every 100 batches
+                    generation_interval = max(
+                        100, progress_total // 20
+                    )  # 20 checks per epoch, min every 100 batches
                     if prompt and batch_count % generation_interval == 0:
-                        print(f"\n{'='*60}")
-                        print(f"Generation check at batch {batch_count}/{progress_total} (Step {self.optimizer.t})")
-                        print(f"Current loss: {float(loss):.4f}, Avg loss: {total_loss/batch_count:.4f}")
-                        print(f"{'='*60}")
+                        print(f"\n{'=' * 60}")
+                        print(
+                            f"Generation check at batch {batch_count}/{progress_total} (Step {self.optimizer.t})"
+                        )
+                        print(
+                            f"Current loss: {float(loss):.4f}, Avg loss: {total_loss / batch_count:.4f}"
+                        )
+                        print(f"{'=' * 60}")
                         print(f"Prompt: {prompt}")
                         print("Generated: ", end="")
                         self.generate(
@@ -1015,15 +926,36 @@ class Trainer:
                             max_length=100,
                             temperature=0.8,
                         )
-                        print(f"\n{'='*60}\n")
+                        print(f"\n{'=' * 60}\n")
+
+                    # Mid-epoch checkpointing (save every 10% of progress)
+                    # Keep only 2 most recent checkpoints to save disk space
+                    checkpoint_interval = max(1000, progress_total // 10)
+                    if batch_count % checkpoint_interval == 0:
+                        checkpoint_name = (
+                            f"{timestamped_checkpoint}_batch{batch_count}.pkl"
+                        )
+                        print(f"Saving mid-epoch checkpoint at batch {batch_count}...")
+                        self.save_checkpoint(checkpoint_name)
+
+                        # Clean up old checkpoints (keep only 2 most recent)
+                        self._cleanup_old_checkpoints(
+                            timestamped_checkpoint, keep_last=2
+                        )
+                        print(f"Checkpoint saved: {checkpoint_name}")
+
+                # Flush tail gradients when the final micro-batch group is incomplete.
+                if accumulation_count > 0 and accumulated_grads is not None:
+                    averaged_grads = tree.tree_map(
+                        lambda g: g / accumulation_count, accumulated_grads
+                    )
+                    self.update_params(averaged_grads)
+                    total_lr += self.optimizer.lr
+                    lr_steps += 1
 
                 avg_loss = total_loss / batch_count
-                avg_lr = total_lr / batch_count
-                final_lr = (
-                    self.optimizer.lr
-                    if not self.use_lr_schedule
-                    else self.optimizer.get_lr()
-                )
+                avg_lr = total_lr / max(1, lr_steps)
+                final_lr = self.optimizer.lr
                 print(
                     f"Epoch {epoch + 1}/{epochs} complete. Avg loss: {avg_loss:.4f}, Avg LR: {avg_lr:.6f}, Final LR: {final_lr:.6f}"
                 )
@@ -1065,7 +997,12 @@ class Trainer:
 
         gc.enable()
         print("Training complete! Saving final checkpoint...")
-        self.save_checkpoint(timestamped_checkpoint)
+        final_checkpoint = f"{timestamped_checkpoint}_final.pkl"
+        self.save_checkpoint(final_checkpoint)
+
+        # Clean up to keep only 2 most recent checkpoints (final + one previous)
+        self._cleanup_old_checkpoints(timestamped_checkpoint, keep_last=1)
+        print(f"Final checkpoint saved: {final_checkpoint}")
 
     def count_parameters(self):
         """
@@ -1083,38 +1020,45 @@ class Trainer:
             "total": 0,
         }
 
-        # Embedding layer parameters
-        param_counts["embedding"] += self.embedding_layer.embeddings.size
-        param_counts["embedding"] += self.embedding_layer.positional_encodings.size
+        embed_params, stack_params, output_params, final_ln_params = self.params_pytree
 
-        # For each transformer block
-        for block in self.transformer_stack.blocks:
-            # Attention parameters
-            param_counts["attention"] += block.attention_layer.W_Q.size
-            param_counts["attention"] += block.attention_layer.W_K.size
-            param_counts["attention"] += block.attention_layer.W_V.size
-            param_counts["attention"] += block.attention_layer.W_O.size
+        import jax
 
-            if block.use_moe:
-                param_counts["feedforward"] += block.moe.count_params()
-            else:
-                # Feedforward parameters
-                param_counts["feedforward"] += block.ffn.W1.size
-                param_counts["feedforward"] += block.ffn.B1.size
-                param_counts["feedforward"] += block.ffn.W2.size
-                param_counts["feedforward"] += block.ffn.B2.size
+        param_counts["embedding"] = sum(
+            x.size for x in jax.tree_util.tree_leaves(embed_params)
+        )
 
-            # Layer normalization parameters
-            param_counts["layer_norm"] += block.gamma_1.size
-            param_counts["layer_norm"] += block.beta_1.size
-            param_counts["layer_norm"] += block.gamma_2.size
-            param_counts["layer_norm"] += block.beta_2.size
+        if "attn" in stack_params:
+            param_counts["attention"] = sum(
+                x.size for x in jax.tree_util.tree_leaves(stack_params["attn"])
+            )
 
-        # Output layer parameters
-        param_counts["output"] += self.output_layer.W_out.size
-        param_counts["output"] += self.output_layer.b_out.size
+        if "ffn" in stack_params:
+            param_counts["feedforward"] = sum(
+                x.size for x in jax.tree_util.tree_leaves(stack_params["ffn"])
+            )
+        elif "moe" in stack_params:
+            param_counts["feedforward"] = sum(
+                x.size for x in jax.tree_util.tree_leaves(stack_params["moe"])
+            )
 
-        # Total (sum all values except 'total' itself)
+        param_counts["layer_norm"] = sum(
+            x.size
+            for x in jax.tree_util.tree_leaves(
+                [
+                    stack_params.get("gamma_1", []),
+                    stack_params.get("beta_1", []),
+                    stack_params.get("gamma_2", []),
+                    stack_params.get("beta_2", []),
+                    final_ln_params,
+                ]
+            )
+        )
+
+        param_counts["output"] = sum(
+            x.size for x in jax.tree_util.tree_leaves(output_params)
+        )
+
         param_counts["total"] = sum(v for k, v in param_counts.items() if k != "total")
 
         return param_counts
@@ -1148,11 +1092,9 @@ class Trainer:
             print("MoE Configuration:")
             print(f" - Experts:       {self.num_experts}")
             print(f" - Experts/Token: {self.experts_per_token}")
-            print(f" - Expert Hidden: {self.transformer_stack.blocks[0].moe.ff_dim}")
+            print(f" - Expert Hidden: {self.ff_dim}")
         else:
-            print(
-                f"FFN Hidden Dimension: {self.transformer_stack.blocks[0].ffn.ff_dim}"
-            )
+            print(f"FFN Hidden Dimension: {self.ff_dim}")
         print("=" * 60)
         print("PARAMETER COUNTS")
         print("=" * 60)
@@ -1281,12 +1223,14 @@ class Trainer:
         """
         if path is None:
             path = get_models_path("training_logs.pkl")
+        embed_params, stack_params, output_params, final_ln_params = self.params_pytree
+
         checkpoint = {
-            "embeddings": self.embedding_layer.embeddings,
-            "positional_encodings": self.embedding_layer.positional_encodings,
-            "stack": [block.get_params() for block in self.transformer_stack.blocks],
-            "output": self.output_layer.get_params(),
-            "final_ln": {"gamma": self.final_gamma, "beta": self.final_beta},
+            "embeddings": embed_params["embeddings"],
+            "positional_encodings": embed_params.get("positional_encodings"),
+            "stack": stack_params,
+            "output": output_params,
+            "final_ln": final_ln_params,
             "optimizer_t": self.optimizer.t,
             "config": {
                 "num_blocks": self.num_blocks,
@@ -1304,6 +1248,7 @@ class Trainer:
             checkpoint["adam_m"] = self._adam_m
             checkpoint["adam_v"] = self._adam_v
 
+        # Convert purely dict structures recursively into np.array strings optionally, but pickle handles DeviceArray natively albeit slowly.
         with open(path, "wb") as f:
             pickle.dump(checkpoint, f, protocol=4)
 
@@ -1316,17 +1261,19 @@ class Trainer:
         """
         if path is None:
             path = get_models_path("model.pkl")
+
+        embed_params, stack_params, output_params, final_ln_params = self.params_pytree
         model_state = {
-            "embeddings": self.embedding_layer.embeddings,
-            "positional_encodings": self.embedding_layer.positional_encodings,
-            "stack": [block.get_params() for block in self.transformer_stack.blocks],
-            "output": self.output_layer.get_params(),
-            "final_ln": {"gamma": self.final_gamma, "beta": self.final_beta},
+            "embeddings": embed_params["embeddings"],
+            "positional_encodings": embed_params.get("positional_encodings"),
+            "stack": stack_params,
+            "output": output_params,
+            "final_ln": final_ln_params,
             "config": {
                 "num_blocks": self.num_blocks,
                 "num_heads": self.num_heads,
                 "vocab_size": self.tokenizer.vocab_size,
-                "embedding_dim": self.embedding_layer.embedding_dim,
+                "embedding_dim": self.embedding_dim,
             },
             "training_history": self.training_history,
             "metadata": self._generate_metadata(),
@@ -1347,43 +1294,121 @@ class Trainer:
         if path is None:
             path = get_models_path("model.npz")
 
-        # Collect all parameters as numpy arrays
-        save_dict = {
-            "embeddings": np.array(self.embedding_layer.embeddings),
-            "positional_encodings": np.array(self.embedding_layer.positional_encodings),
-            "output_W": np.array(self.output_layer.W_out),
-            "output_b": np.array(self.output_layer.b_out),
-            "final_ln_gamma": np.array(self.final_gamma),
-            "final_ln_beta": np.array(self.final_beta),
-        }
+        embed_params, stack_params, output_params, final_ln_params = self.params_pytree
 
-        # Add transformer blocks
-        for i, block in enumerate(self.transformer_stack.blocks):
-            params = block.get_params()
-            save_dict[f"block_{i}_W_Q"] = np.array(params["attn"]["W_Q"])
-            save_dict[f"block_{i}_W_K"] = np.array(params["attn"]["W_K"])
-            save_dict[f"block_{i}_W_V"] = np.array(params["attn"]["W_V"])
-            save_dict[f"block_{i}_W_O"] = np.array(params["attn"]["W_O"])
-            save_dict[f"block_{i}_W1"] = np.array(params["ffn"]["W1"])
-            save_dict[f"block_{i}_B1"] = np.array(params["ffn"]["B1"])
-            save_dict[f"block_{i}_W2"] = np.array(params["ffn"]["W2"])
-            save_dict[f"block_{i}_B2"] = np.array(params["ffn"]["B2"])
-            save_dict[f"block_{i}_gamma_1"] = np.array(params["gamma_1"])
-            save_dict[f"block_{i}_beta_1"] = np.array(params["beta_1"])
-            save_dict[f"block_{i}_gamma_2"] = np.array(params["gamma_2"])
-            save_dict[f"block_{i}_beta_2"] = np.array(params["beta_2"])
+        # Serialize from params_pytree so export stays correct even when block objects are freed.
+        state_dict = {
+            "embeddings": embed_params,
+            "stack": stack_params,
+            "output": output_params,
+            "final_ln": final_ln_params,
+        }
+        save_dict = self._flatten_dict(state_dict)
 
         # Save config as metadata
         config = {
             "num_blocks": self.num_blocks,
             "num_heads": self.num_heads,
             "vocab_size": self.tokenizer.vocab_size,
-            "embedding_dim": self.embedding_layer.embedding_dim,
+            "embedding_dim": self.embedding_dim,
         }
 
         # Save with compression (convert config dict to numpy array)
         np.savez_compressed(path, **save_dict, config=np.array(config, dtype=object))  # type: ignore
         print(f"Model saved to {path} (compressed NPZ format)")
+
+    def _flatten_dict(self, d, parent_key="", sep="."):
+        items = []
+        for k, v in d.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            if isinstance(v, dict):
+                items.extend(self._flatten_dict(v, new_key, sep=sep).items())
+            else:
+                items.append((new_key, np.array(v)))
+        return dict(items)
+
+    def _unflatten_dict(self, d, sep="."):
+        result = {}
+        for k, v in d.items():
+            parts = k.split(sep)
+            d_ref = result
+            for part in parts[:-1]:
+                if part not in d_ref:
+                    d_ref[part] = {}
+                d_ref = d_ref[part]
+            d_ref[parts[-1]] = jnp.array(v)
+        return result
+
+    def save_safetensors(self, path: str):
+        """
+        Save model parameters natively using safetensors.
+        """
+        import json
+
+        import safetensors.numpy
+
+        if path is None:
+            path = get_models_path("model.safetensors")
+
+        embed_params, stack_params, output_params, final_ln_params = self.params_pytree
+        state_dict = {
+            "embeddings": embed_params,
+            "stack": stack_params,
+            "output": output_params,
+            "final_ln": final_ln_params,
+        }
+
+        flat_dict = self._flatten_dict(state_dict)
+
+        metadata = {
+            "optimizer_t": str(self.optimizer.t),
+            "config": json.dumps(
+                {
+                    "num_blocks": self.num_blocks,
+                    "num_heads": self.num_heads,
+                    "lr": self.lr,
+                    "vocab_size": self.tokenizer.vocab_size,
+                    "embedding_dim": self.embedding_layer.embedding_dim,
+                }
+            ),
+        }
+
+        safetensors.numpy.save_file(flat_dict, path, metadata=metadata)
+        print(f"Model saved to {path} (safetensors format)")
+
+    def load_safetensors(self, path: str):
+        import json
+
+        import safetensors.numpy
+
+        print(f"Loading safetensors from {path}...")
+
+        with safetensors.numpy.safe_open(path, framework="numpy") as f:
+            flat_dict = {k: f.get_tensor(k) for k in f.keys()}
+            metadata = f.metadata()
+
+        unflattened = self._unflatten_dict(flat_dict)
+
+        embed_params = unflattened["embeddings"]
+        stack_params = unflattened["stack"]
+        output_params = unflattened["output"]
+        final_ln_params = unflattened["final_ln"]
+
+        if metadata:
+            self.optimizer.t = int(metadata.get("optimizer_t", 0))
+
+        self.params_pytree = (
+            embed_params,
+            stack_params,
+            output_params,
+            final_ln_params,
+        )
+
+        # Reset optimizers
+        self._adam_m = tree.tree_map(lambda p: jnp.zeros_like(p), self.params_pytree)
+        self._adam_v = tree.tree_map(lambda p: jnp.zeros_like(p), self.params_pytree)
+
+        print("Safetensors Checkpoint loaded!")
 
     def load_checkpoint(self, path: str):
         """
@@ -1400,41 +1425,44 @@ class Trainer:
 
         print("Checkpoint loaded! Restoring model parameters...")
 
-        self.embedding_layer.embeddings = checkpoint["embeddings"]
-        self.embedding_layer.positional_encodings = checkpoint["positional_encodings"]
+        embed_params = {
+            "embeddings": checkpoint["embeddings"],
+            "positional_encodings": checkpoint.get("positional_encodings"),
+        }
 
-        for i, block_params in enumerate(checkpoint["stack"]):
-            block = self.transformer_stack.blocks[i]
-            # Update attention
-            block.attention_layer.W_Q = block_params["attn"]["W_Q"]
-            block.attention_layer.W_K = block_params["attn"]["W_K"]
-            block.attention_layer.W_V = block_params["attn"]["W_V"]
-            block.attention_layer.W_O = block_params["attn"]["W_O"]
-            # Update FFN
-            block.ffn.W1 = block_params["ffn"]["W1"]
-            block.ffn.B1 = block_params["ffn"]["B1"]
-            block.ffn.W2 = block_params["ffn"]["W2"]
-            block.ffn.B2 = block_params["ffn"]["B2"]
-            # Update LayerNorm
-            block.gamma_1 = block_params["gamma_1"]
-            block.beta_1 = block_params["beta_1"]
-            block.gamma_2 = block_params["gamma_2"]
-            block.beta_2 = block_params["beta_2"]
+        # Handle older stack list vs new stacked param format
+        stack_checkpoint = checkpoint["stack"]
+        if isinstance(stack_checkpoint, list):
+            # Convert list of block dicts to a single dict of stacked parameters
+            stack_params = jax.tree_util.tree_map(
+                lambda *x: jnp.stack(x), *stack_checkpoint
+            )
+        else:
+            stack_params = stack_checkpoint
 
-        self.output_layer.W_out = self.embedding_layer.embeddings.T
-        self.output_layer.b_out = checkpoint["output"]["b_out"]
+        # Strip old W_out if present, keeping only b_out
+        output_params = checkpoint["output"]
+        if "W_out" in output_params:
+            del output_params["W_out"]
 
         # Load final LayerNorm if it exists
         if "final_ln" in checkpoint:
-            self.final_gamma = checkpoint["final_ln"]["gamma"]
-            self.final_beta = checkpoint["final_ln"]["beta"]
+            final_ln_params = checkpoint["final_ln"]
         else:
             # Old checkpoint - initialize final LayerNorm
-            print(
-                "Warning: Old checkpoint format without final_ln. Initializing final LayerNorm."
-            )
-            self.final_gamma = jnp.ones(self.embedding_layer.embedding_dim)
-            self.final_beta = jnp.zeros(self.embedding_layer.embedding_dim)
+            print("Warning: Old checkpoint format without final_ln. Adding default.")
+            final_ln_params = {
+                "gamma": jnp.ones(self.embedding_layer.embedding_dim),
+                "beta": jnp.zeros(self.embedding_layer.embedding_dim),
+            }
+
+        # Build new pytree layout
+        self.params_pytree = (
+            embed_params,
+            stack_params,
+            output_params,
+            final_ln_params,
+        )
 
         # Restore optimizer state
         if "adam_m" in checkpoint:
@@ -1447,9 +1475,12 @@ class Trainer:
             print(
                 "Warning: Old checkpoint format detected. Reinitializing optimizer state."
             )
-            params_pytree = self._flatten_params()
-            self._adam_m = tree.tree_map(lambda p: jnp.zeros_like(p), params_pytree)
-            self._adam_v = tree.tree_map(lambda p: jnp.zeros_like(p), params_pytree)
+            self._adam_m = tree.tree_map(
+                lambda p: jnp.zeros_like(p), self.params_pytree
+            )
+            self._adam_v = tree.tree_map(
+                lambda p: jnp.zeros_like(p), self.params_pytree
+            )
             self.optimizer.t = 0
 
         # Restore training history if available
@@ -1517,10 +1548,7 @@ class Trainer:
             print(f"DEBUG: EOS token ID: {self.tokenizer.eos_token_id}")
 
         # Extract parameters once to avoid repeated dictionary lookups
-        embed_params = self.embedding_layer.get_params()
-        stack_params = [block.get_params() for block in self.transformer_stack.blocks]
-        output_params = self.output_layer.get_params()
-        final_ln_params = {"gamma": self.final_gamma, "beta": self.final_beta}
+        embed_params, stack_params, output_params, final_ln_params = self.params_pytree
 
         # Force all operations to run on GPU if available
         with jax.default_device(jax.devices()[0]):
@@ -1529,7 +1557,7 @@ class Trainer:
                 batch_token_ids = jnp.array([token_ids], dtype=jnp.int32)
 
                 # Forward pass
-                transformer_out, logits, _ = self.fwd(
+                transformer_out, logits, _ = self._compiled_fwd(
                     embed_params,
                     stack_params,
                     output_params,
@@ -1647,10 +1675,7 @@ class Trainer:
         token_ids = [min(tid, self.tokenizer.vocab_size - 1) for tid in token_ids]
         prompt_length = len(token_ids)
 
-        embed_params = self.embedding_layer.get_params()
-        stack_params = [block.get_params() for block in self.transformer_stack.blocks]
-        output_params = self.output_layer.get_params()
-        final_ln_params = {"gamma": self.final_gamma, "beta": self.final_beta}
+        embed_params, stack_params, output_params, final_ln_params = self.params_pytree
 
         vocab_size = self.tokenizer.vocab_size
 
@@ -1658,7 +1683,7 @@ class Trainer:
             for _ in range(max_length):
                 batch_token_ids = jnp.array([token_ids], dtype=jnp.int32)
 
-                _, logits, _ = self.fwd(
+                _, logits, _ = self._compiled_fwd(
                     embed_params,
                     stack_params,
                     output_params,

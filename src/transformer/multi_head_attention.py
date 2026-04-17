@@ -17,6 +17,7 @@ from functools import partial
 
 import jax # pylint: disable=no-member
 import jax.numpy as jnp # pylint: disable=no-member
+from jax.nn import dot_product_attention
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from src.embeddings.embeddings import EmbeddingLayer
@@ -112,24 +113,25 @@ class MultiHeadAttention:
         K = K.transpose(0,2,1,3)
         V = V.transpose(0,2,1,3)
 
-        # Scaled dot product attention
-        scores = Q @ K.transpose(0, 1, 3, 2) / jnp.sqrt(head_dim)
+        # Compute scale as Python float to avoid traced computation
+        scale = float(1.0 / (head_dim ** 0.5))
 
-        # Casual mask
-        mask = jnp.tril(jnp.ones((seq_len, seq_len))) # See readme for what jnp.tril and jnp.ones do
-        scores = jnp.where(mask == 0, -1e9, scores) # See readme for what jnp.where does
+        # Use JAX's optimized dot_product_attention with causal masking
+        attn_output = dot_product_attention(
+            query=Q,
+            key=K,
+            value=V,
+            bias=None,
+            mask=None,  # Let is_causal handle masking
+            is_causal=True,  # Enable causal masking internally
+            scale=scale,
+        )
 
-        # Softmax to find weights
-        attn_weights = jax.nn.softmax(scores, axis=-1)  # type: ignore  # See readme for what axis=-1 is
-
+        # Apply dropout if needed (dot_product_attention doesn't handle dropout)
         if training and dropout > 0.0 and rng_key is not None:
             keep_prob = 1.0 - dropout
-            dropout_mask = jax.random.bernoulli(rng_key, keep_prob, attn_weights.shape)
-            attn_weights = jnp.where(dropout_mask, attn_weights / keep_prob, 0.0)
-
-
-        # Apply attention to values
-        attn_output = attn_weights @ V
+            dropout_mask = jax.random.bernoulli(rng_key, keep_prob, attn_output.shape)
+            attn_output = jnp.where(dropout_mask, attn_output / keep_prob, 0.0)
 
         # Combining the heads together to make final output
         attn_output = attn_output.transpose(0,2,1,3)
